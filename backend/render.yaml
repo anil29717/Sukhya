@@ -11,7 +11,7 @@ services:
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11.9"
+        value: "3.11.x"
       - key: APP_NAME
         value: Healthcare Platform API
       - key: APP_VERSION
