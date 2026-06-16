@@ -143,3 +143,4 @@ class UsageReportResponse(BaseModel):
     records_uploaded: int
     prescriptions_created: int
     notifications_sent: int
+    followups_created: int = 0

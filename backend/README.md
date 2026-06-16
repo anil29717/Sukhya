@@ -15,6 +15,19 @@ venv\Scripts\uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 - **Swagger UI:** http://localhost:8000/docs
 - **Default admin:** `admin@example.com` / `Admin@123456`
+- **Demo patient:** `patient@example.com` / `Password123` (auto-seeded when `SEED_DEMO_DATA=true`)
+- **Demo doctors:** `doctor@example.com`, `dr.patel@example.com`, etc. / `Password123`
+
+### Demo seed
+
+On startup (or manually), the API seeds a fully populated demo patient with appointments, records, prescriptions, medications, vitals, family, notifications, and timeline.
+
+```powershell
+venv\Scripts\python.exe -m scripts.seed_demo
+venv\Scripts\python.exe -m scripts.seed_demo --force   # re-run if partially seeded
+```
+
+Set `SEED_DEMO_DATA=false` in `.env` to disable auto-seed in production.
 
 ## Phase 1 Modules
 
@@ -104,10 +117,36 @@ Cancellations auto-offer freed slots to the waitlist (FIFO). Buffer time applies
 
 ## Storage
 
-- **Development:** `STORAGE_BACKEND=local` (files in `./storage/`)
-- **Production:** `STORAGE_BACKEND=s3` with AWS credentials and `S3_BUCKET_NAME`
+Medical record PDFs and images can be stored on **Cloudinary** (primary), **S3**, or **local disk**.
 
-Folder structure: `patients/{id}/reports|prescriptions|xray|mri|ctscan/`
+| `STORAGE_BACKEND` | Use case |
+|-------------------|----------|
+| `local` | Development (default) — files in `./storage/` |
+| `cloudinary` | **Production (recommended)** — PDFs/images via Cloudinary CDN |
+| `s3` | AWS S3 only |
+
+### Cloudinary + S3 dual-write (recommended production setup)
+
+```env
+STORAGE_BACKEND=cloudinary
+STORAGE_DUAL_WRITE_S3=true
+
+CLOUDINARY_CLOUD_NAME=your-cloud
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+CLOUDINARY_FOLDER=lumina-health
+
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
+S3_BUCKET_NAME=your-bucket
+```
+
+- **Uploads** go to Cloudinary first (signed URLs for download).
+- With `STORAGE_DUAL_WRITE_S3=true`, the same file is mirrored to S3 as backup.
+- **Reads** always use Cloudinary for `cloudinary:` keys; legacy local keys still work.
+
+Folder structure in Cloudinary/S3: `lumina-health/patients/{id}/reports|prescriptions|xray|mri|ctscan/`
 
 ## Notifications
 

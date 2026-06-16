@@ -44,9 +44,27 @@ services:
       # CORS — add your frontend URLs here (comma-separated)
       - key: CORS_ORIGINS
         value: "*"    # update to: https://your-frontend.vercel.app,https://your-app.netlify.app
-      # Storage
+      # Storage — Cloudinary primary + optional S3 mirror
       - key: STORAGE_BACKEND
-        value: local
+        value: cloudinary
+      - key: STORAGE_DUAL_WRITE_S3
+        value: "true"
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: lumina-health
+      - key: S3_BUCKET_NAME
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
       - key: LOCAL_STORAGE_PATH
         value: ./storage
       - key: MAX_UPLOAD_SIZE_MB
