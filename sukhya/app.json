@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Sukhya",
+    "slug": "sukhya",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#0D9B76"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "in.sukhya.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0D9B76",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "in.sukhya.app",
+      "usesCleartextTraffic": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-splash-screen"
+    ]
+  }
+}

@@ -259,7 +259,7 @@ export default function DoctorAnalyticsScreen({ navigation }) {
           {/* Summary cards */}
           <View style={styles.statsRow}>
             <StatCard value={total}          label="This Month"    icon="calendar-outline"   iconColor="#0D9B76" iconBg="#E6F7F2" colors={colors} />
-            <StatCard value={newPatients}    label="New Patients"    icon="person-add-outline"  iconColor="#0BA5EC" iconBg="#E0F2FE" colors={colors} />
+            <StatCard value={newPatients}    label="New This Month" icon="person-add-outline"  iconColor="#0BA5EC" iconBg="#E0F2FE" colors={colors} />
             <StatCard value={`${completionRate}%`} label="Completion" icon="checkmark-done-outline" iconColor="#12B76A" iconBg="#DCFCE7" colors={colors} />
           </View>
 
@@ -290,12 +290,18 @@ export default function DoctorAnalyticsScreen({ navigation }) {
             <View style={styles.patientRow}>
               <View style={[styles.patientBox, { backgroundColor: colors.tealLight }]}>
                 <Text style={[styles.patientNum, { color: colors.teal }]}>{newPatients}</Text>
-                <Text style={[styles.patientLabel, { color: colors.tealDark ?? colors.teal }]}>New</Text>
+                <Text style={[styles.patientLabel, { color: colors.tealDark ?? colors.teal }]}>New This Month</Text>
               </View>
               <View style={[styles.patientBox, { backgroundColor: colors.neutral100 ?? '#F1F3F5' }]}>
                 <Text style={[styles.patientNum, { color: colors.textPrimary }]}>{returning}</Text>
-                <Text style={[styles.patientLabel, { color: colors.textSecondary }]}>Returning</Text>
+                <Text style={[styles.patientLabel, { color: colors.textSecondary }]}>Returning (est.)</Text>
               </View>
+            </View>
+            <View style={[styles.breakdownCaption, { backgroundColor: colors.tealLight }]}>
+              <Ionicons name="information-circle-outline" size={15} color={colors.teal} style={{ marginTop: 1 }} />
+              <Text style={[styles.breakdownCaptionText, { color: colors.tealDark ?? colors.teal }]}>
+                Estimated as all-time patients minus new patients this month. Not scoped to the selected date range.
+              </Text>
             </View>
           </SectionCard>
 
@@ -325,6 +331,20 @@ const styles = StyleSheet.create({
   patientBox: { flex: 1, borderRadius: Radius.md, padding: Spacing[4], alignItems: 'center' },
   patientNum: { fontFamily: FontFamily.dmMonoMedium, fontSize: 28, marginBottom: 4 },
   patientLabel: { fontFamily: FontFamily.dmSansRegular, fontSize: FontSize.sm },
+  breakdownCaption: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: Spacing[3],
+    borderRadius: Radius.sm,
+    marginTop: Spacing[3],
+  },
+  breakdownCaptionText: {
+    fontFamily: FontFamily.dmSansRegular,
+    fontSize: FontSize.xs,
+    lineHeight: 18,
+    flex: 1,
+  },
   reasonRow: { paddingVertical: Spacing[3], borderBottomWidth: 1, gap: 6 },
   reasonText: { fontFamily: FontFamily.dmSansMedium, fontSize: FontSize.sm },
   reasonCount: { fontFamily: FontFamily.dmSansRegular, fontSize: FontSize.xs },
