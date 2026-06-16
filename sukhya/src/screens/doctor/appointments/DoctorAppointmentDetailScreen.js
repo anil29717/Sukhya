@@ -18,7 +18,7 @@ import { useTheme } from '../../../hooks/useTheme';
 import { FontFamily, FontSize } from '../../../theme/typography';
 import { Spacing, Radius, Shadow } from '../../../theme/spacing';
 import { apiFetch } from '../../../api/client';
-import { formatFullDate, formatTime, formatShortDate, formatPhone } from '../../../utils/format';
+import { formatFullDate, formatTime, formatShortDate, formatPhone, getPatientDisplayName } from '../../../utils/format';
 import CompleteAppointmentSheet from './CompleteAppointmentSheet';
 
 // ─── API ──────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ export default function DoctorAppointmentDetailScreen({ navigation, route }) {
   const handleConfirm = () => {
     Alert.alert(
       'Confirm Appointment',
-      `Confirm appointment for ${appt?.patient_name ?? 'this patient'}?`,
+      `Confirm appointment for ${getPatientDisplayName(appt, 'this patient')}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Confirm', onPress: () => confirmMutation.mutate() },
@@ -339,14 +339,14 @@ export default function DoctorAppointmentDetailScreen({ navigation, route }) {
             {/* Avatar */}
             <View style={[styles.patientAvatar, { backgroundColor: colors.tealLight }]}>
               <Text style={[styles.patientAvatarText, { color: colors.teal }]}>
-                {(appt.patient_name ?? 'P').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                {getPatientDisplayName(appt, 'P').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
               </Text>
             </View>
 
             {/* Info */}
             <View style={{ flex: 1 }}>
               <Text style={[styles.patientName, { color: colors.textPrimary }]}>
-                {appt.patient_name ?? 'Patient'}
+                {getPatientDisplayName(appt)}
               </Text>
               <Text style={[styles.patientMeta, { color: colors.textSecondary }]}>
                 {[appt.patient_age && `${appt.patient_age} yrs`, appt.patient_gender]

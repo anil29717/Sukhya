@@ -18,6 +18,7 @@ import { useMutation } from '@tanstack/react-query';
 import { FontFamily, FontSize } from '../../../theme/typography';
 import { Spacing, Radius } from '../../../theme/spacing';
 import { apiFetch } from '../../../api/client';
+import { getPatientDisplayName } from '../../../utils/format';
 
 // ─── API ──────────────────────────────────────────────────────────
 const completeAppointment = (id, payload) =>
@@ -239,7 +240,7 @@ export default function CompleteAppointmentSheet({
                   Complete Appointment
                 </Text>
                 <Text style={[sheetStyles.subtitle, { color: colors.textSecondary }]}>
-                  {appointment?.patient_name ?? 'Patient'}
+                  {getPatientDisplayName(appointment)}
                   {appointment?.start_time
                     ? ` • ${appointment.start_time.slice(0, 5)}`
                     : ''}

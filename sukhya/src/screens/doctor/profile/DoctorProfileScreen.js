@@ -192,9 +192,9 @@ export default function DoctorProfileScreen({ navigation }) {
       >
         {/* Quick stats */}
         <View style={[styles.statsCard, Shadow.md, { backgroundColor: colors.surface }]}>
-          <StatChip value={doctor?.years_experience ? `${doctor.years_experience}yr` : '—'} label="Experience" colors={colors} />
+          <StatChip value={doctor?.experience_years != null ? `${doctor.experience_years}yr` : '—'} label="Experience" colors={colors} />
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          <StatChip value={doctor?.total_appointments ?? '—'} label="Appointments" colors={colors} />
+          <StatChip value={doctor?.specialization ?? '—'} label="Specialty" colors={colors} />
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <StatChip value={doctor?.consultation_fee ? formatCurrency(doctor.consultation_fee) : '—'} label="Fee" colors={colors} />
         </View>

@@ -18,7 +18,7 @@ import { useTheme } from '../../../hooks/useTheme';
 import { FontFamily, FontSize } from '../../../theme/typography';
 import { Spacing, Radius, Shadow } from '../../../theme/spacing';
 import { apiFetch } from '../../../api/client';
-import { formatTime } from '../../../utils/format';
+import { formatTime, getPatientDisplayName } from '../../../utils/format';
 
 const { width } = Dimensions.get('window');
 
@@ -159,7 +159,7 @@ function AppointmentRow({ item, onPress, colors }) {
         <View style={apptStyles.infoCol}>
           <View style={apptStyles.nameRow}>
             <Text style={[apptStyles.patientName, { color: colors.textPrimary }]} numberOfLines={1}>
-              {item.patient_name ?? 'Patient'}
+              {getPatientDisplayName(item)}
             </Text>
             <View style={[apptStyles.tokenChip, { backgroundColor: colors.tealLight }]}>
               <Text style={[apptStyles.tokenText, { color: colors.teal }]}>

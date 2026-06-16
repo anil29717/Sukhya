@@ -248,7 +248,6 @@ export default function EditDoctorProfileScreen({ navigation }) {
   const [qualification, setQualification]     = useState('');
   const [experience, setExperience]           = useState('');
   const [fee, setFee]                         = useState('');
-  const [hospitalName, setHospitalName]       = useState('');
   const [bio, setBio]                         = useState('');
   const [isDirty, setIsDirty]                 = useState(false);
 
@@ -284,7 +283,6 @@ export default function EditDoctorProfileScreen({ navigation }) {
           : ''
     );
     setFee(doctor?.consultation_fee ? String(doctor.consultation_fee) : '');
-    setHospitalName(doctor?.hospital_name ?? '');
     setBio(doctor?.bio ?? '');
   }, [data, isDirty]);
 
@@ -480,14 +478,6 @@ export default function EditDoctorProfileScreen({ navigation }) {
                 value={qualification}
                 onChangeText={markDirty(setQualification)}
                 autoCapitalize="characters"
-                colors={colors}
-              />
-
-              <FormInput
-                label="Hospital / Clinic Name"
-                placeholder="Apollo Hospital, New Delhi"
-                value={hospitalName}
-                onChangeText={markDirty(setHospitalName)}
                 colors={colors}
               />
 

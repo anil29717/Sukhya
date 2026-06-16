@@ -261,12 +261,18 @@ export default function PatientDetailScreen({ navigation, route }) {
   const records  = recordsData?.items ?? recordsData ?? [];
   const timeline = timelineData?.items ?? timelineData ?? [];
 
-  const initials = (patient?.full_name ?? 'P')
+  const displayName = patient?.user?.full_name ?? patient?.full_name ?? 'Patient';
+  const displayPhone = patient?.user?.phone ?? patient?.phone;
+  const displayEmail = patient?.user?.email ?? patient?.email;
+
+  const initials = displayName
     .split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
-  const conditions = patient?.medical_conditions
-    ? patient.medical_conditions.split(',').map((c) => c.trim()).filter(Boolean)
-    : [];
+  const conditions = patient?.existing_conditions
+    ? patient.existing_conditions.split(',').map((c) => c.trim()).filter(Boolean)
+    : patient?.medical_conditions
+      ? patient.medical_conditions.split(',').map((c) => c.trim()).filter(Boolean)
+      : [];
 
   if (isLoading) {
     return (
@@ -282,8 +288,8 @@ export default function PatientDetailScreen({ navigation, route }) {
   const renderOverview = () => (
     <>
       <SectionCard label="PERSONAL DETAILS" colors={colors}>
-        <InfoRow icon="call-outline"     label="Phone"         value={patient?.phone ? formatPhone(patient.phone) : '—'} tappable={!!patient?.phone} onPress={() => Linking.openURL(`tel:${patient.phone}`)} colors={colors} />
-        <InfoRow icon="mail-outline"     label="Email"         value={patient?.email}    colors={colors} />
+        <InfoRow icon="call-outline"     label="Phone"         value={displayPhone ? formatPhone(displayPhone) : '—'} tappable={!!displayPhone} onPress={() => Linking.openURL(`tel:${displayPhone}`)} colors={colors} />
+        <InfoRow icon="mail-outline"     label="Email"         value={displayEmail ?? '—'}    colors={colors} />
         <InfoRow icon="calendar-outline" label="Date of Birth" value={patient?.date_of_birth ? formatShortDate(patient.date_of_birth) : '—'} colors={colors} />
         <InfoRow icon="location-outline" label="Address"       value={patient?.address ?? 'Not provided'} colors={colors} isLast />
       </SectionCard>
@@ -313,13 +319,10 @@ export default function PatientDetailScreen({ navigation, route }) {
         <InfoRow icon="call-outline"   label="Phone" value={patient?.emergency_contact_phone ? formatPhone(patient.emergency_contact_phone) : '—'} tappable={!!patient?.emergency_contact_phone} onPress={() => Linking.openURL(`tel:${patient.emergency_contact_phone}`)} colors={colors} isLast />
       </SectionCard>
 
-      <SectionCard label="APPOINTMENT SUMMARY" colors={colors}>
-        <InfoRow icon="repeat-outline"     label="Total Appointments"  value={String(patient?.total_appointments ?? 0)} colors={colors} />
-        <InfoRow icon="calendar-outline"   label="First Visit"         value={patient?.first_appointment_date ? formatShortDate(patient.first_appointment_date) : '—'} colors={colors} />
-        <InfoRow icon="time-outline"       label="Last Visit"          value={patient?.last_appointment_date ? formatShortDate(patient.last_appointment_date) : '—'} colors={colors} />
+      <SectionCard label="APPOINTMENT HISTORY" colors={colors}>
         <TouchableOpacity
-          onPress={() => navigation.navigate('PatientHistory', { patientId })}
-          style={{ paddingTop: Spacing[3] }}
+          onPress={() => navigation.navigate('PatientHistory', { patientId, patientName: displayName })}
+          style={{ paddingVertical: Spacing[2] }}
         >
           <Text style={{ color: colors.teal, fontFamily: FontFamily.dmSansMedium, fontSize: FontSize.sm }}>
             View all appointments →
@@ -398,27 +401,20 @@ export default function PatientDetailScreen({ navigation, route }) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.name, { color: colors.textPrimary }]}>
-                {patient?.full_name ?? 'Patient'}
+                {displayName}
               </Text>
               <Text style={[styles.hereMeta, { color: colors.textSecondary }]}>
-                {[patient?.age && `${patient.age} yrs`, patient?.gender]
-                  .filter(Boolean).join(' • ') || 'Patient'}
+                {patient?.gender ? patient.gender : 'Patient'}
               </Text>
             </View>
           </View>
 
           {/* Stats row */}
           <View style={[styles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
-            {[
-              { value: patient?.blood_group ?? '—', label: 'Blood Group' },
-              { value: patient?.age ? String(patient.age) : '—', label: 'Age' },
-              { value: patient?.bmi ? String(patient.bmi) : '—', label: 'BMI' },
-            ].map((s, i) => (
-              <View key={i} style={[styles.statItem, i < 2 && { borderRightColor: colors.border, borderRightWidth: 1 }]}>
-                <Text style={[styles.statValue, { color: colors.teal }]}>{s.value}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{s.label}</Text>
-              </View>
-            ))}
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: colors.teal }]}>{patient?.blood_group ?? '—'}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Blood Group</Text>
+            </View>
           </View>
 
           {/* Conditions */}
@@ -458,7 +454,7 @@ export default function PatientDetailScreen({ navigation, route }) {
               screen: 'CreateNote',
               params: {
                 patientId,
-                patientName: patient?.full_name ?? patient?.user?.full_name,
+                patientName: displayName,
               },
             })
           }
@@ -473,7 +469,7 @@ export default function PatientDetailScreen({ navigation, route }) {
               screen: 'CreatePrescription',
               params: {
                 patientId,
-                patientName: patient?.full_name ?? patient?.user?.full_name,
+                patientName: displayName,
               },
             })
           }
