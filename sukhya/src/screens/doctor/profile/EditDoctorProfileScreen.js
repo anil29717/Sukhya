@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -254,25 +254,39 @@ export default function EditDoctorProfileScreen({ navigation }) {
 
   // ── Errors ──
   const [errors, setErrors] = useState({});
+  const syncedKeyRef = useRef(null);
 
   // ── Fetch data ──
-  const { isLoading, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['doctor-me-edit'],
     queryFn: async () => {
       const [user, doctor] = await Promise.all([fetchUserMe(), fetchDoctorMe()]);
       return { user, doctor };
     },
-    onSuccess: ({ user, doctor }) => {
-      setFullName(user?.full_name ?? '');
-      setPhone(user?.phone ?? '');
-      setSpecialization(doctor?.specialization ?? '');
-      setQualification(doctor?.qualification ?? '');
-      setExperience(doctor?.years_experience ? String(doctor.years_experience) : '');
-      setFee(doctor?.consultation_fee ? String(doctor.consultation_fee) : '');
-      setHospitalName(doctor?.hospital_name ?? '');
-      setBio(doctor?.bio ?? '');
-    },
   });
+
+  useEffect(() => {
+    if (!data || isDirty) return;
+    const syncKey = `${data.user?.id ?? ''}:${data.user?.updated_at ?? ''}:${data.doctor?.updated_at ?? ''}`;
+    if (syncedKeyRef.current === syncKey) return;
+    syncedKeyRef.current = syncKey;
+
+    const { user, doctor } = data;
+    setFullName(user?.full_name ?? '');
+    setPhone(user?.phone ?? '');
+    setSpecialization(doctor?.specialization ?? '');
+    setQualification(doctor?.qualification ?? '');
+    setExperience(
+      doctor?.experience_years != null
+        ? String(doctor.experience_years)
+        : doctor?.years_experience != null
+          ? String(doctor.years_experience)
+          : ''
+    );
+    setFee(doctor?.consultation_fee ? String(doctor.consultation_fee) : '');
+    setHospitalName(doctor?.hospital_name ?? '');
+    setBio(doctor?.bio ?? '');
+  }, [data, isDirty]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

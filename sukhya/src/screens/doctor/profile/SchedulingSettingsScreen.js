@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -133,16 +133,23 @@ export default function SchedulingSettingsScreen({ navigation }) {
   const [bufferTime, setBufferTime]   = useState(0);   // minutes
   const [maxPerDay, setMaxPerDay]     = useState(20);  // appointments
   const [slotDuration, setSlotDuration] = useState(30); // minutes
+  const syncedKeyRef = useRef(null);
 
-  const { isLoading, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['doctor-scheduling'],
     queryFn: fetchSettings,
-    onSuccess: (data) => {
-      setBufferTime(data?.buffer_time_minutes ?? 0);
-      setMaxPerDay(data?.max_appointments_per_day ?? 20);
-      setSlotDuration(data?.slot_duration_minutes ?? 30);
-    },
   });
+
+  useEffect(() => {
+    if (!data || isDirty) return;
+    const syncKey = JSON.stringify(data);
+    if (syncedKeyRef.current === syncKey) return;
+    syncedKeyRef.current = syncKey;
+
+    setBufferTime(data?.slot_buffer_minutes ?? 0);
+    setMaxPerDay(data?.max_appointments_per_day ?? 20);
+    setSlotDuration(data?.slot_duration_minutes ?? 30);
+  }, [data, isDirty]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
