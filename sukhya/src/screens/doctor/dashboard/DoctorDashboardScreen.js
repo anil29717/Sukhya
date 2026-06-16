@@ -448,7 +448,12 @@ export default function DoctorDashboardScreen({ navigation }) {
             label="New Prescription"
             iconColor="#0D9B76"
             iconBg="#E6F7F2"
-            onPress={() => navigation.navigate('ClinicalTab', { screen: 'CreatePrescription' })}
+            onPress={() =>
+              navigation.navigate('PatientsTab', {
+                screen: 'PatientList',
+                params: { pickerMode: true, createScreen: 'CreatePrescription' },
+              })
+            }
             colors={colors}
           />
           <ActionTile
@@ -456,7 +461,12 @@ export default function DoctorDashboardScreen({ navigation }) {
             label="Write Note"
             iconColor="#7C3AED"
             iconBg="#EDE9FE"
-            onPress={() => navigation.navigate('ClinicalTab', { screen: 'CreateNote' })}
+            onPress={() =>
+              navigation.navigate('PatientsTab', {
+                screen: 'PatientList',
+                params: { pickerMode: true, createScreen: 'CreateNote' },
+              })
+            }
             colors={colors}
           />
           <ActionTile
