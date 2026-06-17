@@ -2,6 +2,11 @@
 
 # dependencies
 node_modules/
+.env
+.env.*
+!.env.example
+node_modules/
+.expo/
 
 # Expo
 .expo/
