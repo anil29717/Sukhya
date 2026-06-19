@@ -88,6 +88,11 @@ export default function WelcomeScreen({ navigation }) {
     navigation.navigate('Login');
   };
 
+  const handleContinueAsPatient = async () => {
+    await saveUserRole('patient');
+    dispatch(setSavedRole('patient'));
+  };
+
   // Entrance animations
   const contentOpacity   = useRef(new Animated.Value(0)).current;
   const contentTranslate = useRef(new Animated.Value(24)).current;
@@ -168,10 +173,7 @@ export default function WelcomeScreen({ navigation }) {
         {/* Secondary — Patient (placeholder for now) */}
         <TouchableOpacity
           style={[styles.btnSecondary, { borderColor: colors.teal }]}
-          onPress={() => {
-            // Patient flow — Sprint later
-            // navigation.navigate('PatientLogin')
-          }}
+          onPress={handleContinueAsPatient}
           activeOpacity={0.88}
         >
           <Text style={[styles.btnSecondaryText, { color: colors.teal }]}>

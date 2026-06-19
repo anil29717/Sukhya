@@ -4,22 +4,49 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { setAuth, clearAuth, setSavedRole, setLoading } from '../store/authSlice';
+import { setPatientOnboardingComplete } from '../store/settingsSlice';
 import { getAccessToken, clearTokens } from '../api/client';
 import { getMeApi } from '../api/auth';
 import { getMyDoctorProfile } from '../api/doctors';
+import { getMyPatientProfile } from '../api/patients';
 import { getTokenRole } from '../utils/jwt';
 import { getUserRole } from '../utils/roleStorage';
+import {
+  isOnboardingCompleteCached,
+  markOnboardingComplete,
+  clearOnboardingCache,
+} from '../utils/patientOnboarding';
 
 import SplashScreen, { SPLASH_MIN_DURATION_MS } from '../screens/auth/SplashScreen';
 import AuthNavigator from './AuthNavigator';
 import DoctorTabNavigator from './DoctorTabNavigator';
+import PatientAuthNavigator from './PatientAuthNavigator';
+import OnboardingNavigator from './OnboardingNavigator';
+import PatientTabNavigator from './PatientTabNavigator';
 import DoctorPendingScreen from '../screens/auth/DoctorPendingScreen';
 
 const Stack = createNativeStackNavigator();
 
+async function resolvePatientOnboarding() {
+  const cached = await isOnboardingCompleteCached();
+  if (cached) return true;
+
+  try {
+    const profile = await getMyPatientProfile();
+    const complete = !!profile.date_of_birth;
+    if (complete) {
+      await markOnboardingComplete();
+    }
+    return complete;
+  } catch {
+    return false;
+  }
+}
+
 export default function RootNavigator() {
   const dispatch = useDispatch();
   const { isAuthenticated, role, isApproved, savedRole } = useSelector((s) => s.auth);
+  const { patientOnboardingComplete } = useSelector((s) => s.settings);
   const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
@@ -34,7 +61,9 @@ export default function RootNavigator() {
 
         const token = await getAccessToken();
         if (!token) {
+          await clearOnboardingCache();
           dispatch(clearAuth());
+          dispatch(setPatientOnboardingComplete(false));
           return;
         }
 
@@ -50,6 +79,12 @@ export default function RootNavigator() {
             } catch {
               // Profile may not exist yet
             }
+            if (mounted) dispatch(setPatientOnboardingComplete(false));
+          }
+
+          if (role === 'patient') {
+            const onboardingComplete = await resolvePatientOnboarding();
+            if (mounted) dispatch(setPatientOnboardingComplete(onboardingComplete));
           }
 
           dispatch(setAuth({
@@ -59,7 +94,9 @@ export default function RootNavigator() {
           }));
         } catch {
           await clearTokens();
+          await clearOnboardingCache();
           dispatch(clearAuth());
+          dispatch(setPatientOnboardingComplete(false));
         }
       } finally {
         if (mounted) dispatch(setLoading(false));
@@ -90,6 +127,19 @@ export default function RootNavigator() {
 
   const renderNavigator = () => {
     if (!isAuthenticated) {
+      if (savedRole === 'patient') {
+        return (
+          <Stack.Screen name="PatientAuth">
+            {() => (
+              <PatientAuthNavigator
+                key="patient"
+                initialRouteName="PatientLogin"
+              />
+            )}
+          </Stack.Screen>
+        );
+      }
+
       return (
         <Stack.Screen name="Auth">
           {() => (
@@ -111,6 +161,18 @@ export default function RootNavigator() {
     if (role === 'doctor' && isApproved) {
       return (
         <Stack.Screen name="DoctorApp" component={DoctorTabNavigator} />
+      );
+    }
+
+    if (role === 'patient' && !patientOnboardingComplete) {
+      return (
+        <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
+      );
+    }
+
+    if (role === 'patient' && patientOnboardingComplete) {
+      return (
+        <Stack.Screen name="PatientApp" component={PatientTabNavigator} />
       );
     }
 
