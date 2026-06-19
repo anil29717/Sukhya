@@ -1,0 +1,76 @@
+services:
+  - type: web
+    name: healthcare-api
+    runtime: python
+    region: singapore    # change to: oregon / frankfurt / ohio as needed
+    plan: free           # or: starter, standard, pro
+    rootDir: .           # deploy from the backend/ folder (set this in Render dashboard)
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.x"
+      - key: APP_NAME
+        value: Healthcare Platform API
+      - key: APP_VERSION
+        value: "1.0.0"
+      - key: DEBUG
+        value: "false"
+      - key: ENVIRONMENT
+        value: production
+      # DATABASE_URL — set this in Render Dashboard after creating a PostgreSQL instance
+      - key: DATABASE_URL
+        sync: false    # marks it as a secret — you paste it in the dashboard
+      # JWT
+      - key: SECRET_KEY
+        sync: false    # generate with: openssl rand -hex 32
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "30"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "7"
+      # Admin seed
+      - key: DEFAULT_ADMIN_EMAIL
+        value: admin@example.com
+      - key: DEFAULT_ADMIN_PASSWORD
+        sync: false    # set a strong password in Render dashboard
+      - key: DEFAULT_ADMIN_FULL_NAME
+        value: System Administrator
+      - key: PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      # CORS — add your frontend URLs here (comma-separated)
+      - key: CORS_ORIGINS
+        value: "*"    # update to: https://your-frontend.vercel.app,https://your-app.netlify.app
+      # Storage — Cloudinary primary + optional S3 mirror
+      - key: STORAGE_BACKEND
+        value: cloudinary
+      - key: STORAGE_DUAL_WRITE_S3
+        value: "true"
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: lumina-health
+      - key: S3_BUCKET_NAME
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: LOCAL_STORAGE_PATH
+        value: ./storage
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "10"
+      # Notifications
+      - key: NOTIFICATIONS_ENABLED
+        value: "false"
+      - key: SMTP_FROM_EMAIL
+        value: noreply@example.com

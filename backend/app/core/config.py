@@ -26,15 +26,30 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8081"
 
-    # Storage
-    STORAGE_BACKEND: str = "local"
+    # Storage — cloudinary (primary for medical PDFs), s3, or local
+    STORAGE_BACKEND: str = "local"  # local | cloudinary | s3
+    STORAGE_DUAL_WRITE_S3: bool = False  # mirror Cloudinary uploads to S3 backup
     LOCAL_STORAGE_PATH: str = "./storage"
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "us-east-1"
     S3_BUCKET_NAME: str = ""
     S3_SIGNED_URL_EXPIRE_SECONDS: int = 3600
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
+    CLOUDINARY_FOLDER: str = "lumina-health"  # optional root folder prefix in Cloudinary
     MAX_UPLOAD_SIZE_MB: int = 10
+
+    @property
+    def s3_configured(self) -> bool:
+        return bool(self.S3_BUCKET_NAME and self.AWS_ACCESS_KEY_ID and self.AWS_SECRET_ACCESS_KEY)
+
+    @property
+    def cloudinary_configured(self) -> bool:
+        return bool(
+            self.CLOUDINARY_CLOUD_NAME and self.CLOUDINARY_API_KEY and self.CLOUDINARY_API_SECRET
+        )
 
     # Notifications
     NOTIFICATIONS_ENABLED: bool = True
@@ -46,6 +61,9 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = True
     WHATSAPP_API_URL: str = ""
     WHATSAPP_API_TOKEN: str = ""
+
+    SEED_DEMO_DATA: bool = True
+    ADMIN_DB_COPY_ENABLED: bool = False
 
     @property
     def cors_origins_list(self) -> list[str]:
