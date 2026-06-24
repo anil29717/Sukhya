@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, File, Form, Query, Request, Security, UploadFile, status
+import logging
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Security, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,7 @@ from app.schemas.medical import MedicalRecordListResponse, MedicalRecordResponse
 from app.services import medical_record_service
 
 router = APIRouter(prefix="/medical-records", tags=["Medical Records (EHR)"])
+logger = logging.getLogger(__name__)
 
 
 def _to_response(record) -> MedicalRecordResponse:
@@ -101,10 +104,30 @@ def download_medical_record(
 ):
     ip = request.client.host if request.client else None
     record = medical_record_service.get_record(db, record_id, current_user, ip_address=ip)
+    try:
+        content, _ = storage_service.read_file(record.storage_key)
+    except FileNotFoundError:
+        from app.core.seed_demo import repair_demo_record_file
+
+        if repair_demo_record_file(db, record):
+            db.commit()
+            db.refresh(record)
+            content, _ = storage_service.read_file(record.storage_key)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found in storage. Please re-upload this record.",
+            )
+    except Exception as exc:
+        logger.exception("Failed to read medical record %s from storage", record_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to retrieve file from storage.",
+        ) from exc
+
     from app.services.locker_service import log_download
 
     log_download(db, current_user, record, ip_address=ip)
-    content, _ = storage_service.read_file(record.storage_key)
     return Response(
         content=content,
         media_type=record.mime_type,

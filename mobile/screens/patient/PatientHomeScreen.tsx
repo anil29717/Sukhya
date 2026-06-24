@@ -1,7 +1,13 @@
+/**
+ * Patient Home Screen — Premium redesign
+ * Layout: Coral hero → floating stats → Today / Health / Timeline tabs
+ */
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
 import {
+  Dimensions,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -11,82 +17,618 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { formatDoctorName } from '@/api/types';
 import { getUpcomingAppointments } from '@/api/appointments';
+import { listFamilyMembers } from '@/api/family';
+import { getLockerSummary } from '@/api/family';
 import { getDueReminders, listVitals, logMedicationDose } from '@/api/medications';
+import { getMyPatientProfile } from '@/api/patients';
 import { listPrescriptions } from '@/api/prescriptions';
 import { getHealthTimeline } from '@/api/timeline';
-import { getLockerSummary, getNotifications } from '@/api/family';
-import { getMyPatientProfile } from '@/api/patients';
-import { LuminaCard } from '@/components/lumina/LuminaCard';
-import { FamilySwitcher } from '@/components/lumina/FamilySwitcher';
-import { HealthScoreCard, computeHealthScore } from '@/components/lumina/HealthScoreCard';
-import { QuickInsights } from '@/components/lumina/QuickInsights';
+import { formatDoctorName } from '@/api/types';
+import { EmptyState } from '@/components/lumina/EmptyState';
 import { LoadingSkeleton } from '@/components/lumina/ErrorState';
-import { MetricCard as SummaryMetricCard } from '@/components/lumina/MetricCard';
-import { SectionLabel } from '@/components/lumina/SectionLabel';
-import { StatusBadge } from '@/components/lumina/LuminaButton';
+import { ActionTile } from '@/components/lumina/ActionTile';
 import { useActivePatient } from '@/hooks/useActivePatient';
+import { useNotifications } from '@/hooks/useNotifications';
 import { RootState } from '@/store/store';
-import { LuminaRadius, LuminaSpacing, LuminaTypography, getTimeGreeting } from '@/theme/lumina';
+import {
+  LuminaFontFamily,
+  LuminaRadius,
+  LuminaShadow,
+  LuminaSpacing,
+  LuminaTypography,
+  getStatusStyle,
+  getTimeGreeting,
+} from '@/theme/lumina';
 import { useLuminaTheme } from '@/theme/useLuminaTheme';
+import { triggerHaptic } from '@/utils/haptics';
 
-const QUICK_ACTIONS = [
-  { icon: 'calendar-outline' as const, label: 'Book Appointment', route: '/(patient)/(tabs)/doctors' as const },
-  { icon: 'cloud-upload-outline' as const, label: 'Upload Record', route: '/(patient)/(tabs)/records' as const },
-  { icon: 'medkit-outline' as const, label: 'View Prescriptions', route: '/(patient)/prescriptions' as const },
-  { icon: 'pulse-outline' as const, label: 'Add Vitals', route: '/(patient)/vitals/add' as const },
-];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+type HomeTab = 'today' | 'health' | 'timeline';
+
+// Relationship → accent color
+const RELATION_COLOR: Record<string, string> = {
+  self: '#F05A2A',
+  spouse: '#0D9B76',
+  parent: '#7C3AED',
+  child: '#0BA5EC',
+  sibling: '#F79009',
+};
+const relColor = (rel?: string) => RELATION_COLOR[rel?.toLowerCase() ?? ''] ?? '#868E96';
+
+function cardSurface() {
+  return Platform.OS === 'ios' ? [LuminaShadow.card] : [];
+}
+
+function stripDrPrefix(name: string) {
+  return name.replace(/^dr\.?\s+/i, '').trim();
+}
+
+function formatApptDate(dateStr?: string) {
+  if (!dateStr) return 'None';
+  const d = new Date(dateStr);
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+function formatApptTime(timeStr: string) {
+  const [hStr, mStr] = timeStr.split(':');
+  let h = parseInt(hStr, 10);
+  const m = mStr?.slice(0, 2) ?? '00';
+  const period = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${period}`;
+}
+
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
+function StatChip({
+  icon,
+  label,
+  value,
+  accent,
+  onPress,
+  colors,
+  isDark,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  accent?: boolean;
+  onPress?: () => void;
+  colors: ReturnType<typeof useLuminaTheme>['colors'];
+  isDark: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        chipStyles.chip,
+        ...cardSurface(),
+        { backgroundColor: colors.surface, opacity: pressed ? 0.9 : 1 },
+      ]}
+    >
+      <View style={[chipStyles.iconWrap, { backgroundColor: accent ? colors.coralSoft : colors.tealSoft }]}>
+        <Ionicons name={icon} size={16} color={accent ? colors.coral : colors.teal} />
+      </View>
+      <Text style={[chipStyles.value, { color: accent ? colors.coral : colors.text }]}>{value}</Text>
+      <Text style={[chipStyles.label, { color: colors.textSecondary }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const chipStyles = StyleSheet.create({
+  chip: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: LuminaRadius.xl,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    gap: 5,
+  },
+  iconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: LuminaRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  value: {
+    fontFamily: LuminaFontFamily.dmMonoMedium,
+    fontSize: 15,
+    letterSpacing: 0.2,
+  },
+  label: {
+    fontFamily: LuminaFontFamily.dmSansRegular,
+    fontSize: 11,
+    textAlign: 'center',
+  },
+});
+
+function SectionTitle({
+  label,
+  action,
+  onAction,
+  colors,
+}: {
+  label: string;
+  action?: string;
+  onAction?: () => void;
+  colors: ReturnType<typeof useLuminaTheme>['colors'];
+}) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 4 }}>
+      <Text style={{ fontFamily: LuminaFontFamily.dmSansMedium, fontSize: 11, color: colors.coral, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+        {label}
+      </Text>
+      {action && onAction ? (
+        <Pressable onPress={onAction} hitSlop={8}>
+          <Text style={{ fontFamily: LuminaFontFamily.dmSansMedium, fontSize: 13, color: colors.teal }}>{action}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+// ─── TODAY TAB ─────────────────────────────────────────────────────────────────
+
+function TodayTab({
+  appt,
+  reminders,
+  isLoadingAppts,
+  logDoseMutation,
+  colors,
+  isDark,
+  router,
+}: {
+  appt: ReturnType<typeof useQuery<any>>['data'];
+  reminders: any[] | undefined;
+  isLoadingAppts: boolean;
+  logDoseMutation: ReturnType<typeof useMutation<any, any, any>>;
+  colors: ReturnType<typeof useLuminaTheme>['colors'];
+  isDark: boolean;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const QUICK_ACTIONS = [
+    { icon: 'calendar-outline' as const, label: 'Book Appointment', route: '/(patient)/(tabs)/doctors' as const, bg: colors.coralSoft, ic: colors.coral },
+    { icon: 'cloud-upload-outline' as const, label: 'Upload Record', route: '/(patient)/(tabs)/records' as const, bg: colors.tealSoft, ic: colors.teal },
+    { icon: 'medkit-outline' as const, label: 'Prescriptions', route: '/(patient)/prescriptions' as const, bg: '#EDE9FE', ic: '#7C3AED' },
+    { icon: 'pulse-outline' as const, label: 'Add Vitals', route: '/(patient)/vitals/add' as const, bg: '#FEF3C7', ic: '#F79009' },
+  ];
+
+  const apptData = appt as any;
+  const { color: statusColor, bg: statusBg } = apptData
+    ? getStatusStyle(apptData.status, colors)
+    : { color: colors.textMuted, bg: colors.border };
+
+  return (
+    <View style={{ gap: 20 }}>
+      {/* Next appointment */}
+      <View>
+        <SectionTitle label="Upcoming visit" action={apptData ? 'See all' : undefined} onAction={() => router.push('/(patient)/appointments')} colors={colors} />
+        {isLoadingAppts ? (
+          <LoadingSkeleton count={1} />
+        ) : apptData ? (
+          <Pressable
+            onPress={() => { triggerHaptic('light'); router.push(`/(patient)/appointments/${apptData.id}`); }}
+            style={({ pressed }) => [
+              apptStyles.card,
+              ...cardSurface(),
+              { backgroundColor: colors.surface, opacity: pressed ? 0.88 : 1 },
+            ]}
+          >
+            <View style={[apptStyles.bar, { backgroundColor: statusColor }]} />
+            <View style={apptStyles.body}>
+              <View style={apptStyles.topRow}>
+                <Text style={[apptStyles.time, { color: colors.textSecondary }]}>
+                  {apptData.start_time ? formatApptTime(apptData.start_time) : ''}
+                </Text>
+                <View style={[apptStyles.badge, { backgroundColor: statusBg }]}>
+                  <Text style={[apptStyles.badgeText, { color: statusColor }]}>
+                    {apptData.status?.charAt(0).toUpperCase() + apptData.status?.slice(1)}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[apptStyles.docName, { color: colors.text }]} numberOfLines={1}>
+                {formatDoctorName(apptData.doctor?.full_name)}
+              </Text>
+              {apptData.reason ? (
+                <Text style={[apptStyles.reason, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {apptData.reason}
+                </Text>
+              ) : null}
+              <View style={apptStyles.dateRow}>
+                <Ionicons name="calendar-outline" size={12} color={colors.textMuted} />
+                <Text style={[apptStyles.dateText, { color: colors.textMuted }]}>
+                  {formatApptDate(apptData.appointment_date)}
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => router.push('/(patient)/(tabs)/doctors')}
+            style={[apptStyles.emptyAppt, { backgroundColor: colors.coralSoft, borderColor: colors.coral + '33' }]}
+          >
+            <Ionicons name="calendar-outline" size={22} color={colors.coral} />
+            <View style={{ flex: 1 }}>
+              <Text style={[{ fontFamily: LuminaFontFamily.dmSansMedium, fontSize: 14, color: colors.coral }]}>
+                No upcoming appointment
+              </Text>
+              <Text style={[{ fontFamily: LuminaFontFamily.dmSansRegular, fontSize: 12, color: colors.coral + 'BB' }]}>
+                Tap to book your next visit
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.coral} />
+          </Pressable>
+        )}
+      </View>
+
+      {/* Quick actions */}
+      <View>
+        <SectionTitle label="Quick actions" colors={colors} />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickActionsScroll}
+        >
+          {QUICK_ACTIONS.map((a) => (
+            <ActionTile
+              key={a.label}
+              layout="carousel"
+              icon={a.icon}
+              label={a.label}
+              iconColor={a.ic}
+              iconBg={a.bg}
+              onPress={() => router.push(a.route)}
+              role="patient"
+            />
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Today's medications */}
+      {reminders && reminders.length > 0 ? (
+        <View>
+          <SectionTitle label="Today's medications" action="View all" onAction={() => router.push('/(patient)/medications')} colors={colors} />
+          {reminders.slice(0, 3).map((r) => (
+            <View
+              key={`${r.medication_id}-${r.scheduled_for}`}
+              style={[
+                medStyles.row,
+                ...cardSurface(),
+                { backgroundColor: colors.surface },
+              ]}
+            >
+              <View style={[medStyles.icon, { backgroundColor: colors.tealSoft }]}>
+                <Ionicons name="medical-outline" size={18} color={colors.teal} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[medStyles.name, { color: colors.text }]}>{r.medication_name}</Text>
+                <Text style={[medStyles.time, { color: colors.textSecondary }]}>
+                  {new Date(r.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+              <Pressable
+                style={[medStyles.takenBtn, { backgroundColor: colors.tealSoft }]}
+                onPress={() => {
+                  triggerHaptic('success');
+                  logDoseMutation.mutate({ medId: r.medication_id, scheduledFor: r.scheduled_for });
+                }}
+              >
+                <Text style={[medStyles.takenText, { color: colors.teal }]}>Taken</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const apptStyles = StyleSheet.create({
+  card: { borderRadius: LuminaRadius.xl, flexDirection: 'row', overflow: 'hidden' },
+  bar: { width: 4 },
+  body: { flex: 1, padding: 16, gap: 5 },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  time: { fontFamily: LuminaFontFamily.dmMonoMedium, fontSize: 13 },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: LuminaRadius.full },
+  badgeText: { fontFamily: LuminaFontFamily.dmSansMedium, fontSize: 11 },
+  docName: { fontFamily: LuminaFontFamily.nunitoSemiBold, fontSize: 17 },
+  reason: { fontFamily: LuminaFontFamily.dmSansRegular, fontSize: 13 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  dateText: { fontFamily: LuminaFontFamily.dmSansRegular, fontSize: 12 },
+  emptyAppt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: LuminaRadius.xl,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
+});
+
+const medStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: LuminaRadius.xl,
+    marginBottom: 8,
+  },
+  icon: { width: 38, height: 38, borderRadius: LuminaRadius.full, alignItems: 'center', justifyContent: 'center' },
+  name: { fontFamily: LuminaFontFamily.dmSansMedium, fontSize: 15 },
+  time: { fontFamily: LuminaFontFamily.dmMonoMedium, fontSize: 12, marginTop: 2 },
+  takenBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: LuminaRadius.full },
+  takenText: { fontFamily: LuminaFontFamily.dmSansSemiBold, fontSize: 12 },
+});
+
+// ─── HEALTH TAB ────────────────────────────────────────────────────────────────
+
+function HealthTab({
+  heartRate,
+  bloodPressure,
+  weight,
+  recordsCount,
+  activeRx,
+  upcomingCount,
+  vitalsCount,
+  colors,
+  isDark,
+  router,
+}: {
+  heartRate: string;
+  bloodPressure: string;
+  weight: string;
+  recordsCount: number;
+  activeRx: number;
+  upcomingCount: number;
+  vitalsCount: number;
+  colors: ReturnType<typeof useLuminaTheme>['colors'];
+  isDark: boolean;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const vitals = [
+    { label: 'Blood Pressure', value: bloodPressure, unit: 'mmHg', icon: 'heart' as const, bg: '#FEE2E2', ic: '#F04438' },
+    { label: 'Heart Rate', value: String(heartRate), unit: 'bpm', icon: 'pulse-outline' as const, bg: '#FEF0EB', ic: '#F05A2A' },
+    { label: 'Weight', value: weight === '—' ? '—' : String(weight), unit: weight !== '—' ? 'kg' : '', icon: 'barbell-outline' as const, bg: '#E0F2FE', ic: '#0BA5EC' },
+  ];
+
+  const summary = [
+    { label: 'Records', value: recordsCount, icon: 'folder-outline' as const, route: '/(patient)/(tabs)/records' as const },
+    { label: 'Prescriptions', value: activeRx, icon: 'medkit-outline' as const, route: '/(patient)/prescriptions' as const },
+    { label: 'Upcoming', value: upcomingCount, icon: 'calendar-outline' as const, route: '/(patient)/appointments' as const },
+    { label: 'Vitals', value: vitalsCount, icon: 'pulse-outline' as const, route: '/(patient)/vitals' as const },
+  ];
+
+  return (
+    <View style={{ gap: 20 }}>
+      {/* Vitals */}
+      <View>
+        <SectionTitle
+          label="Vitals"
+          action="Add vital"
+          onAction={() => router.push('/(patient)/vitals/add')}
+          colors={colors}
+        />
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {vitals.map((v) => (
+            <Pressable
+              key={v.label}
+              onPress={() => router.push('/(patient)/vitals')}
+              style={({ pressed }) => [
+                vitalStyles.card,
+                ...cardSurface(),
+                { backgroundColor: colors.surface, opacity: pressed ? 0.88 : 1 },
+              ]}
+            >
+              <View style={[vitalStyles.iconWrap, { backgroundColor: v.bg }]}>
+                <Ionicons name={v.icon} size={18} color={v.ic} />
+              </View>
+              <Text style={[vitalStyles.value, { color: colors.text }]}>{v.value}</Text>
+              {v.unit ? <Text style={[vitalStyles.unit, { color: colors.textMuted }]}>{v.unit}</Text> : null}
+              <Text style={[vitalStyles.label, { color: colors.textSecondary }]}>{v.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      {/* Summary stats */}
+      <View>
+        <SectionTitle label="Health summary" colors={colors} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          {summary.map((s) => (
+            <Pressable
+              key={s.label}
+              onPress={() => router.push(s.route)}
+              style={({ pressed }) => [
+                summaryStyles.card,
+                ...cardSurface(),
+                { backgroundColor: colors.surface, opacity: pressed ? 0.88 : 1 },
+              ]}
+            >
+              <View style={[summaryStyles.iconWrap, { backgroundColor: colors.coralSoft }]}>
+                <Ionicons name={s.icon} size={18} color={colors.coral} />
+              </View>
+              <Text style={[summaryStyles.number, { color: colors.text }]}>{s.value}</Text>
+              <Text style={[summaryStyles.label, { color: colors.textSecondary }]}>{s.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const vitalStyles = StyleSheet.create({
+  card: {
+    flex: 1,
+    borderRadius: LuminaRadius.xl,
+    padding: 14,
+    alignItems: 'center',
+    gap: 5,
+  },
+  iconWrap: { width: 38, height: 38, borderRadius: LuminaRadius.full, alignItems: 'center', justifyContent: 'center' },
+  value: { fontFamily: LuminaFontFamily.dmMonoMedium, fontSize: 16 },
+  unit: { fontFamily: LuminaFontFamily.dmSansRegular, fontSize: 10, marginTop: -4 },
+  label: { fontFamily: LuminaFontFamily.dmSansRegular, fontSize: 11, textAlign: 'center' },
+});
+
+const summaryStyles = StyleSheet.create({
+  card: {
+    width: (SCREEN_WIDTH - LuminaSpacing.xl * 2 - 10) / 2,
+    borderRadius: LuminaRadius.xl,
+    padding: 16,
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  iconWrap: { width: 38, height: 38, borderRadius: LuminaRadius.full, alignItems: 'center', justifyContent: 'center' },
+  number: { fontFamily: LuminaFontFamily.dmMonoMedium, fontSize: 22 },
+  label: { fontFamily: LuminaFontFamily.dmSansRegular, fontSize: 13 },
+});
+
+// ─── TIMELINE TAB ──────────────────────────────────────────────────────────────
+
+const TIMELINE_EVENT_ICONS: Record<string, { icon: keyof typeof Ionicons.glyphMap; bg: string; ic: string }> = {
+  appointment: { icon: 'calendar', bg: '#E0F2FE', ic: '#0BA5EC' },
+  prescription: { icon: 'medkit', bg: '#DCFCE7', ic: '#12B76A' },
+  record: { icon: 'document-text', bg: '#EDE9FE', ic: '#7C3AED' },
+  vital: { icon: 'pulse', bg: '#FEF0EB', ic: '#F05A2A' },
+  note: { icon: 'pencil', bg: '#FEF3C7', ic: '#F79009' },
+};
+
+function getTimelineIcon(eventType: string) {
+  const key = Object.keys(TIMELINE_EVENT_ICONS).find((k) => eventType.toLowerCase().includes(k));
+  return TIMELINE_EVENT_ICONS[key ?? ''] ?? { icon: 'ellipse' as const, bg: '#F1F3F5', ic: '#868E96' };
+}
+
+function TimelineTab({
+  timelineData,
+  colors,
+  router,
+}: {
+  timelineData: any;
+  colors: ReturnType<typeof useLuminaTheme>['colors'];
+  router: ReturnType<typeof useRouter>;
+}) {
+  const items = timelineData?.items ?? [];
+
+  if (!items.length) {
+    return (
+      <EmptyState
+        icon="time-outline"
+        title="Your health story starts here"
+        message="Book appointments, log vitals, and upload records to build your timeline."
+        role="patient"
+      />
+    );
+  }
+
+  return (
+    <View style={{ gap: 0 }}>
+      <SectionTitle
+        label="Recent activity"
+        action="View full timeline"
+        onAction={() => router.push('/(patient)/(tabs)/timeline')}
+        colors={colors}
+      />
+      {items.map((ev: any, index: number) => {
+        const tileInfo = getTimelineIcon(ev.event_type ?? '');
+        const isLast = index === items.length - 1;
+        // Strip Dr. prefix from timeline titles if present
+        const title = ev.title ? ev.title.replace(/\bDr\.\s+Dr\.\s*/gi, 'Dr. ') : '';
+        return (
+          <Pressable
+            key={`${ev.event_type}-${ev.reference_id ?? index}`}
+            onPress={() => { triggerHaptic('light'); router.push('/(patient)/(tabs)/timeline'); }}
+            style={({ pressed }) => [tlStyles.row, { opacity: pressed ? 0.82 : 1 }]}
+          >
+            {/* Spine */}
+            <View style={tlStyles.spineCol}>
+              <View style={[tlStyles.dot, { backgroundColor: tileInfo.ic }]}>
+                <Ionicons name={tileInfo.icon} size={12} color="#FFFFFF" />
+              </View>
+              {!isLast ? <View style={[tlStyles.spine, { backgroundColor: colors.border }]} /> : null}
+            </View>
+
+            {/* Content */}
+            <View style={[tlStyles.card, LuminaShadow.sm, { backgroundColor: colors.surface }]}>
+              <Text style={[tlStyles.date, { color: colors.textMuted }]}>
+                {new Date(ev.event_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </Text>
+              <Text style={[tlStyles.title, { color: colors.text }]} numberOfLines={2}>{title}</Text>
+              {ev.summary ? (
+                <Text style={[tlStyles.summary, { color: colors.textSecondary }]} numberOfLines={2}>{ev.summary}</Text>
+              ) : null}
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const tlStyles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  spineCol: { alignItems: 'center', width: 28, paddingTop: 14 },
+  dot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  spine: { flex: 1, width: 2, marginTop: 4, marginBottom: -8 },
+  card: { flex: 1, borderRadius: LuminaRadius.lg, padding: 14, gap: 4 },
+  date: { fontFamily: LuminaFontFamily.dmMonoMedium, fontSize: 11 },
+  title: { fontFamily: LuminaFontFamily.dmSansMedium, fontSize: 14 },
+  summary: { fontFamily: LuminaFontFamily.dmSansRegular, fontSize: 13, lineHeight: 18 },
+});
+
+// ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export function PatientHomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { colors } = useLuminaTheme();
+  const { colors, isDark } = useLuminaTheme({ role: 'patient' });
   const { user } = useSelector((s: RootState) => s.auth);
-  const { activePatientId } = useActivePatient();
+  const { guardianPatientId, activePatientId, activePatientName, switchToGuardian, switchToFamilyMember } = useActivePatient();
   const patientId = activePatientId ?? undefined;
+  const [activeTab, setActiveTab] = useState<HomeTab>('today');
 
+  // ── Queries ──
   const { data: upcomingData, isLoading: isLoadingAppts, isRefetching, refetch: refetchAppts } = useQuery({
     queryKey: ['appointments', 'upcoming', patientId],
     queryFn: () => getUpcomingAppointments(),
   });
-
   const { data: vitalsData } = useQuery({
     queryKey: ['vitals', patientId],
     queryFn: () => listVitals({ patient_id: patientId }),
   });
-
   const { data: reminders } = useQuery({
     queryKey: ['medication-reminders'],
     queryFn: getDueReminders,
   });
-
   const { data: lockerSummary } = useQuery({
     queryKey: ['locker-summary', patientId],
     queryFn: () => getLockerSummary(patientId),
   });
-
   const { data: prescriptionsData } = useQuery({
     queryKey: ['prescriptions', patientId],
     queryFn: () => listPrescriptions({ patient_id: patientId, page: 1 }),
   });
-
   const { data: timelineData } = useQuery({
     queryKey: ['timeline-home', patientId],
-    queryFn: () => getHealthTimeline({ patient_id: patientId, page_size: 3 }),
+    queryFn: () => getHealthTimeline({ patient_id: patientId, page_size: 5 }),
   });
-
-  const { data: notificationsData } = useQuery({
-    queryKey: ['notifications-count'],
-    queryFn: () => getNotifications(1),
-  });
-
-  const { data: patientProfile } = useQuery({
-    queryKey: ['patient-me'],
-    queryFn: getMyPatientProfile,
+  const { unreadCount } = useNotifications();
+  const { data: familyMembers } = useQuery({
+    queryKey: ['family-members'],
+    queryFn: listFamilyMembers,
+    enabled: !!guardianPatientId,
   });
 
   const logDoseMutation = useMutation({
@@ -101,293 +643,382 @@ export function PatientHomeScreen() {
     queryClient.invalidateQueries({ queryKey: ['medication-reminders'] });
     queryClient.invalidateQueries({ queryKey: ['locker-summary'] });
     queryClient.invalidateQueries({ queryKey: ['timeline-home'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
   };
 
-  const appt = upcomingData?.items?.[0];
-  const displayName = user?.full_name?.split(' ')[0] ?? 'Guest';
-  const heartRate = vitalsData?.find((v) => v.vital_type === 'heart_rate')?.value ?? '—';
-  const bloodPressure = vitalsData?.find((v) => v.vital_type === 'blood_pressure')?.value ?? '—';
-  const weight = vitalsData?.find((v) => v.vital_type === 'weight')?.value ?? '—';
-  const unreadCount = notificationsData?.total ?? 0;
-
-  const formatTime = (timeStr: string) => {
-    const parts = timeStr.split(':');
-    let hour = parseInt(parts[0], 10);
-    const minute = parts[1]?.slice(0, 2) ?? '00';
-    const period = hour >= 12 ? 'PM' : 'AM';
-    hour = hour % 12 || 12;
-    return { hour: `${hour}:${minute}`, period };
-  };
-
-  const formatDateDay = (dateStr: string) => {
-    const d = new Date(dateStr);
-    const today = new Date();
-    if (d.toDateString() === today.toDateString()) return 'TODAY';
-    return d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-  };
-
-  const apptTime = appt ? formatTime(appt.start_time) : null;
-  const activeRx = prescriptionsData?.items?.filter((p) => p.status !== 'cancelled').length ?? 0;
+  const appt = upcomingData?.items?.[0] as any;
+  const firstName = (activePatientName ?? user?.full_name ?? 'Guest').split(' ')[0];
+  const activeRx = prescriptionsData?.items?.filter((p: any) => p.status !== 'cancelled').length ?? 0;
   const vitalsCount = vitalsData?.length ?? 0;
-  const { score, profileComplete } = computeHealthScore({
-    hasDob: !!patientProfile?.date_of_birth,
-    hasBloodGroup: !!patientProfile?.blood_group,
-    hasEmergency: !!patientProfile?.emergency_contact_name,
-    recordsCount: lockerSummary?.total_records ?? 0,
-    vitalsCount,
-    appointmentsCount: upcomingData?.total ?? 0,
-  });
-
+  const heartRate = vitalsData?.find((v: any) => v.vital_type === 'heart_rate')?.value ?? '—';
+  const bloodPressure = vitalsData?.find((v: any) => v.vital_type === 'blood_pressure')?.value ?? '—';
+  const weight = vitalsData?.find((v: any) => v.vital_type === 'weight')?.value ?? '—';
   const daysSinceVisit = (() => {
-    const completed = timelineData?.items?.find((e) => e.event_type.includes('appointment'));
-    if (!completed) return null;
-    const diff = Math.floor((Date.now() - new Date(completed.event_at).getTime()) / 86400000);
-    return diff;
+    const ev = timelineData?.items?.find((e: any) => e.event_type?.includes('appointment'));
+    if (!ev) return null;
+    return Math.floor((Date.now() - new Date(ev.event_at).getTime()) / 86400000);
   })();
 
+  const selfName = stripDrPrefix(user?.full_name ?? 'You');
+  const selfId = guardianPatientId;
+
+  const handleSwitchProfile = async (memberId: number | null, memberName: string) => {
+    triggerHaptic('medium');
+    if (!memberId || memberId === selfId) {
+      await switchToGuardian();
+    } else {
+      await switchToFamilyMember(memberId, memberName);
+    }
+    queryClient.invalidateQueries();
+  };
+
+  const TABS: { key: HomeTab; label: string }[] = [
+    { key: 'today', label: 'Today' },
+    { key: 'health', label: 'Health' },
+    { key: 'timeline', label: 'Timeline' },
+  ];
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100 }]}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor="rgba(255,255,255,0.8)" />
+        }
       >
-        <FamilySwitcher />
-
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <View style={[styles.avatar, { backgroundColor: colors.primarySoft }]}>
-              <Ionicons name="person" size={24} color={colors.primary} />
-            </View>
+        {/* ────── Hero ────────────────────────────────────────── */}
+        <View style={[styles.hero, { paddingTop: insets.top + 18 }]}>
+          {/* Top row */}
+          <View style={styles.heroTopRow}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.greeting, { color: colors.textSecondary }]}>{getTimeGreeting()}</Text>
-              <Text style={[styles.displayName, { color: colors.text }]} accessibilityRole="header">
-                {displayName}
-              </Text>
+              <Text style={styles.heroGreeting}>{getTimeGreeting()}</Text>
+              <Text style={styles.heroName} numberOfLines={1}>{firstName}</Text>
             </View>
-          </View>
-          <Pressable
-            style={[styles.bellBtn, { backgroundColor: colors.surfaceElevated }, styles.elevated]}
-            onPress={() => router.push('/(patient)/notifications')}
-            accessibilityLabel="Notifications"
-          >
-            <Ionicons name="notifications-outline" size={22} color={colors.text} />
-            {unreadCount > 0 ? (
-              <View style={[styles.badge, { backgroundColor: colors.error }]}>
-                <Text style={styles.badgeCount}>{Math.min(unreadCount, 9)}{unreadCount > 9 ? '+' : ''}</Text>
-              </View>
-            ) : null}
-          </Pressable>
-        </View>
-
-        <HealthScoreCard
-          score={score}
-          profileComplete={profileComplete}
-          recordsCount={lockerSummary?.total_records ?? 0}
-          vitalsCount={vitalsCount}
-          appointmentsCount={upcomingData?.total ?? 0}
-        />
-
-        <QuickInsights
-          items={[
-            {
-              icon: 'calendar-outline',
-              label: 'Last visit',
-              value: daysSinceVisit != null ? `${daysSinceVisit}d ago` : '—',
-              tint: 'secondary',
-            },
-            {
-              icon: 'medkit-outline',
-              label: 'Active meds',
-              value: String(reminders?.length ?? 0),
-              tint: 'accent',
-            },
-            {
-              icon: 'time-outline',
-              label: 'Next appt',
-              value: appt ? 'Scheduled' : 'None',
-              tint: appt ? 'primary' : 'warning',
-            },
-          ]}
-        />
-
-        {isLoadingAppts ? (
-          <LoadingSkeleton count={1} />
-        ) : appt ? (
-          <Pressable onPress={() => router.push(`/(patient)/appointments/${appt.id}`)}>
-            <LuminaCard elevated style={styles.appointmentCard}>
-              <Text style={[styles.cardLabel, { color: colors.textMuted }]}>UPCOMING VISIT</Text>
-              <View style={styles.appointmentRow}>
-                <View style={[styles.timeBlock, { backgroundColor: colors.accentBlue }]}>
-                  <Text style={[styles.timeDay, { color: colors.text }]}>{formatDateDay(appt.appointment_date)}</Text>
-                  <Text style={[styles.timeHour, { color: colors.text }]}>{apptTime?.hour}</Text>
-                  <Text style={[styles.timePeriod, { color: colors.text }]}>{apptTime?.period}</Text>
-                </View>
-                <View style={styles.appointmentInfo}>
-                  <Text style={[styles.doctorName, { color: colors.text }]}>{formatDoctorName(appt.doctor?.full_name)}</Text>
-                  <Text style={[styles.specialty, { color: colors.textSecondary }]}>{appt.reason ?? 'Consultation'}</Text>
-                  <StatusBadge status={appt.status} />
-                </View>
-              </View>
-            </LuminaCard>
-          </Pressable>
-        ) : (
-          <LuminaCard elevated style={styles.appointmentCard}>
-            <Text style={[styles.cardLabel, { color: colors.textMuted }]}>UPCOMING VISIT</Text>
-            <Text style={[styles.specialty, { color: colors.textSecondary }]}>No visits scheduled yet.</Text>
-            <Pressable style={[styles.linkBtn, { backgroundColor: colors.primary }]} onPress={() => router.push('/(patient)/(tabs)/doctors')}>
-              <Text style={[styles.linkBtnText, { color: colors.onPrimary }]}>Book Appointment</Text>
-            </Pressable>
-          </LuminaCard>
-        )}
-
-        <SectionLabel title="Quick actions" />
-        <View style={styles.quickGrid}>
-          {QUICK_ACTIONS.map((action) => (
             <Pressable
-              key={action.label}
-              style={[styles.quickAction, { backgroundColor: colors.surfaceElevated }, styles.elevated]}
-              onPress={() => router.push(action.route)}
+              style={styles.bellBtn}
+              onPress={() => router.push('/(patient)/notifications')}
+              accessibilityLabel="Notifications"
             >
-              <View style={[styles.quickIcon, { backgroundColor: colors.primarySoft }]}>
-                <Ionicons name={action.icon} size={22} color={colors.primary} />
-              </View>
-              <Text style={[styles.quickActionText, { color: colors.text }]}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {reminders && reminders.length > 0 ? (
-          <>
-            <SectionLabel title="ACTIVE MEDICATIONS" />
-            {reminders.slice(0, 3).map((r) => (
-              <View key={`${r.medication_id}-${r.scheduled_for}`} style={[styles.medRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.medName, { color: colors.text }]}>{r.medication_name}</Text>
-                  <Text style={[styles.medTime, { color: colors.textSecondary }]}>
-                    {new Date(r.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+              {unreadCount > 0 ? (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
                   </Text>
                 </View>
+              ) : null}
+            </Pressable>
+          </View>
+
+          {/* Family avatar strip — only shown when family members exist */}
+          {guardianPatientId && (familyMembers?.length ?? 0) > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.avatarStrip}
+            >
+              {/* Self */}
+              {(() => {
+                const isActive = activePatientId === selfId || !activePatientId;
+                return (
+                  <Pressable
+                    style={styles.avatarItem}
+                    onPress={() => handleSwitchProfile(selfId, selfName)}
+                    accessibilityLabel={`Switch to your profile`}
+                  >
+                    <View style={[
+                      styles.avatarCircle,
+                      {
+                        backgroundColor: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.22)',
+                        borderWidth: isActive ? 2.5 : 0,
+                        borderColor: '#FFFFFF',
+                      },
+                    ]}>
+                      <Text style={[styles.avatarInitial, { color: isActive ? colors.coral : '#FFFFFF' }]}>
+                        {selfName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={[styles.avatarLabel, { fontFamily: isActive ? LuminaFontFamily.dmSansMedium : LuminaFontFamily.dmSansRegular }]}>
+                      You
+                    </Text>
+                    {isActive ? <View style={styles.avatarActiveDot} /> : null}
+                  </Pressable>
+                );
+              })()}
+
+              {/* Family members */}
+              {(familyMembers ?? []).map((m: any) => {
+                const memberId = m.dependent?.patient_id ?? null;
+                const memberName = m.nickname || m.full_name;
+                const isActive = activePatientId === memberId;
+                const rc = relColor(m.relationship);
+                return (
+                  <Pressable
+                    key={m.id}
+                    style={styles.avatarItem}
+                    onPress={() => memberId && handleSwitchProfile(memberId, memberName)}
+                    accessibilityLabel={`Switch to ${memberName}'s profile`}
+                  >
+                    <View style={[
+                      styles.avatarCircle,
+                      {
+                        backgroundColor: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.22)',
+                        borderWidth: isActive ? 2.5 : 0,
+                        borderColor: '#FFFFFF',
+                      },
+                    ]}>
+                      <Text style={[styles.avatarInitial, { color: isActive ? rc : '#FFFFFF' }]}>
+                        {memberName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={[styles.avatarLabel, { fontFamily: isActive ? LuminaFontFamily.dmSansMedium : LuminaFontFamily.dmSansRegular }]} numberOfLines={1}>
+                      {memberName.split(' ')[0]}
+                    </Text>
+                    {isActive ? <View style={styles.avatarActiveDot} /> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
+
+          {/* Spacer for floating cards */}
+          <View style={{ height: 28 }} />
+        </View>
+
+        {/* ────── Floating stat cards ─────────────────────────── */}
+        <View style={styles.statRow}>
+          <StatChip
+            icon="time-outline"
+            label="Last visit"
+            value={daysSinceVisit != null ? `${daysSinceVisit}d ago` : '—'}
+            colors={colors}
+            isDark={isDark}
+          />
+          <StatChip
+            icon="medical-outline"
+            label="Active meds"
+            value={String(reminders?.length ?? 0)}
+            colors={colors}
+            isDark={isDark}
+            accent={false}
+          />
+          <StatChip
+            icon="calendar-outline"
+            label="Next appt"
+            value={formatApptDate(appt?.appointment_date)}
+            accent={!!appt}
+            onPress={appt ? () => router.push(`/(patient)/appointments/${appt.id}`) : undefined}
+            colors={colors}
+            isDark={isDark}
+          />
+        </View>
+
+        {/* ────── Tab strip ───────────────────────────────────── */}
+        <View style={styles.tabWrap}>
+          <View style={[styles.tabTrack, { backgroundColor: colors.neutral100 }]}>
+            {TABS.map((t) => {
+              const active = activeTab === t.key;
+              return (
                 <Pressable
-                  style={[styles.takenBtn, { backgroundColor: colors.accentMint }]}
-                  onPress={() => logDoseMutation.mutate({ medId: r.medication_id, scheduledFor: r.scheduled_for })}
+                  key={t.key}
+                  style={[styles.tabBtn, active && [styles.tabBtnActive, { backgroundColor: colors.coral }]]}
+                  onPress={() => { triggerHaptic('light'); setActiveTab(t.key); }}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
                 >
-                  <Text style={[styles.takenBtnText, { color: colors.accentMintText }]}>Taken</Text>
+                  <Text style={[
+                    styles.tabLabel,
+                    { color: active ? '#FFFFFF' : colors.textSecondary },
+                    active && { fontFamily: LuminaFontFamily.dmSansMedium },
+                  ]}>
+                    {t.label}
+                  </Text>
                 </Pressable>
-              </View>
-            ))}
-            <Pressable onPress={() => router.push('/(patient)/medications')}>
-              <Text style={[styles.seeAll, { color: colors.accentTeal }]}>View all medications →</Text>
-            </Pressable>
-          </>
-        ) : null}
-
-        <SectionLabel title="HEALTH SUMMARY" />
-        <View style={styles.summaryGrid}>
-          <SummaryMetricCard icon="folder-outline" label="Total Records" value={lockerSummary?.total_records ?? 0} onPress={() => router.push('/(patient)/(tabs)/records')} />
-          <SummaryMetricCard icon="medkit-outline" label="Prescriptions" value={activeRx} onPress={() => router.push('/(patient)/prescriptions')} />
-          <SummaryMetricCard icon="calendar-outline" label="Upcoming" value={upcomingData?.total ?? 0} onPress={() => router.push('/(patient)/appointments')} />
-          <SummaryMetricCard icon="heart-outline" label="Heart Rate" value={heartRate} onPress={() => router.push('/(patient)/vitals')} />
+              );
+            })}
+          </View>
         </View>
 
-        <View style={styles.metricsStack}>
-          <VitalRow icon="heart" iconColor="#EF4444" iconBg={colors.accentRed} label="Blood Pressure" value={bloodPressure} colors={colors} />
-          <VitalRow icon="barbell-outline" iconColor="#3B82F6" iconBg={colors.accentBlue} label="Weight" value={weight === '—' ? '—' : `${weight} kg`} colors={colors} />
+        {/* ────── Tab content ─────────────────────────────────── */}
+        <View style={styles.content}>
+          {activeTab === 'today' ? (
+            <TodayTab
+              appt={appt}
+              reminders={reminders}
+              isLoadingAppts={isLoadingAppts}
+              logDoseMutation={logDoseMutation}
+              colors={colors}
+              isDark={isDark}
+              router={router}
+            />
+          ) : activeTab === 'health' ? (
+            <HealthTab
+              heartRate={String(heartRate)}
+              bloodPressure={String(bloodPressure)}
+              weight={String(weight)}
+              recordsCount={lockerSummary?.total_records ?? 0}
+              activeRx={activeRx}
+              upcomingCount={upcomingData?.total ?? 0}
+              vitalsCount={vitalsCount}
+              colors={colors}
+              isDark={isDark}
+              router={router}
+            />
+          ) : (
+            <TimelineTab
+              timelineData={timelineData}
+              colors={colors}
+              router={router}
+            />
+          )}
         </View>
-
-        <SectionLabel title="RECENT TIMELINE" />
-        {timelineData?.items?.length ? (
-          timelineData.items.map((ev) => (
-            <Pressable key={`${ev.event_type}-${ev.reference_id}`} style={styles.activityItem} onPress={() => router.push('/(patient)/(tabs)/timeline')}>
-              <View style={[styles.activityDot, { backgroundColor: colors.tabActive }]} />
-              <View style={styles.activityContent}>
-                <Text style={[styles.activityTime, { color: colors.textMuted }]}>{new Date(ev.event_at).toLocaleDateString()}</Text>
-                <Text style={[styles.activityTitle, { color: colors.text }]}>{ev.title}</Text>
-                {ev.summary ? <Text style={[styles.activityDetail, { color: colors.textSecondary }]}>{ev.summary}</Text> : null}
-              </View>
-            </Pressable>
-          ))
-        ) : (
-          <Text style={[styles.emptyTimeline, { color: colors.textMuted }]}>No recent health events.</Text>
-        )}
-
-        <LinearGradient colors={[colors.wellnessGradientStart, colors.wellnessGradientEnd]} style={styles.wellnessCard}>
-          <Text style={styles.wellnessTitle}>Health Tip</Text>
-          <Text style={styles.wellnessBody}>Stay hydrated and log your vitals regularly for better insights into your health trends.</Text>
-        </LinearGradient>
       </ScrollView>
     </View>
   );
 }
 
-function VitalRow({ icon, iconColor, iconBg, label, value, colors }: { icon: keyof typeof Ionicons.glyphMap; iconColor: string; iconBg: string; label: string; value: string; colors: ReturnType<typeof useLuminaTheme>['colors'] }) {
-  return (
-    <View style={[styles.metricCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={[styles.metricIcon, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon} size={20} color={iconColor} />
-      </View>
-      <View style={styles.metricText}>
-        <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{label}</Text>
-        <Text style={[styles.metricValue, { color: colors.text }]}>{value}</Text>
-      </View>
-    </View>
-  );
-}
+// ─── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scroll: { paddingHorizontal: LuminaSpacing.lg, paddingTop: LuminaSpacing.sm },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: LuminaSpacing.xl },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: LuminaSpacing.md, flex: 1 },
-  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  greeting: { ...LuminaTypography.bodySmall },
-  displayName: { ...LuminaTypography.display, fontSize: 26 },
-  elevated: {
-    shadowColor: '#0B1220',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+  root: { flex: 1 },
+
+  // Hero
+  hero: {
+    backgroundColor: '#F05A2A',
+    paddingHorizontal: LuminaSpacing.xl,
+    paddingBottom: 0,
   },
-  bellBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  badge: { position: 'absolute', top: 6, right: 6, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  badgeCount: { color: '#fff', fontSize: 9, fontWeight: '700' },
-  appointmentCard: { marginBottom: LuminaSpacing.lg },
-  cardLabel: { ...LuminaTypography.label, marginBottom: LuminaSpacing.md },
-  appointmentRow: { flexDirection: 'row', alignItems: 'center', gap: LuminaSpacing.md },
-  timeBlock: { borderRadius: LuminaRadius.md, padding: LuminaSpacing.md, alignItems: 'center', minWidth: 64 },
-  timeDay: { fontSize: 10, fontWeight: '700' },
-  timeHour: { fontSize: 18, fontWeight: '700' },
-  timePeriod: { fontSize: 11 },
-  appointmentInfo: { flex: 1, gap: 4 },
-  doctorName: { ...LuminaTypography.h3 },
-  specialty: { ...LuminaTypography.bodySmall },
-  linkBtn: { marginTop: LuminaSpacing.md, paddingVertical: 10, borderRadius: LuminaRadius.md, alignItems: 'center' },
-  linkBtnText: { fontWeight: '600' },
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: LuminaSpacing.sm, marginBottom: LuminaSpacing.lg },
-  quickAction: { width: '48%', padding: LuminaSpacing.lg, borderRadius: LuminaRadius.lg, gap: LuminaSpacing.sm },
-  quickIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  quickActionText: { ...LuminaTypography.bodySmall, fontWeight: '600' },
-  medRow: { flexDirection: 'row', alignItems: 'center', padding: LuminaSpacing.md, borderRadius: LuminaRadius.lg, borderWidth: 1, marginBottom: LuminaSpacing.sm },
-  medName: { ...LuminaTypography.h3 },
-  medTime: { ...LuminaTypography.bodySmall },
-  takenBtn: { paddingHorizontal: LuminaSpacing.md, paddingVertical: LuminaSpacing.sm, borderRadius: LuminaRadius.md },
-  takenBtnText: { fontWeight: '700', fontSize: 12 },
-  seeAll: { fontWeight: '600', marginBottom: LuminaSpacing.lg },
-  summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: LuminaSpacing.sm, marginBottom: LuminaSpacing.lg },
-  metricsStack: { gap: LuminaSpacing.sm, marginBottom: LuminaSpacing.lg },
-  metricCard: { flexDirection: 'row', alignItems: 'center', borderRadius: LuminaRadius.lg, padding: LuminaSpacing.lg, borderWidth: 1, gap: LuminaSpacing.md },
-  metricIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  metricText: { flex: 1 },
-  metricLabel: { ...LuminaTypography.label },
-  metricValue: { ...LuminaTypography.h3 },
-  activityItem: { flexDirection: 'row', gap: LuminaSpacing.md, marginBottom: LuminaSpacing.lg },
-  activityDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
-  activityContent: { flex: 1 },
-  activityTime: { ...LuminaTypography.label, marginBottom: 2 },
-  activityTitle: { ...LuminaTypography.body, fontWeight: '500' },
-  activityDetail: { ...LuminaTypography.bodySmall, marginTop: 4 },
-  emptyTimeline: { ...LuminaTypography.bodySmall, marginBottom: LuminaSpacing.lg },
-  wellnessCard: { borderRadius: LuminaRadius.lg, padding: LuminaSpacing.xl, marginTop: LuminaSpacing.md, marginBottom: LuminaSpacing.xxl },
-  wellnessTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: LuminaSpacing.sm },
-  wellnessBody: { fontSize: 14, color: 'rgba(255,255,255,0.9)', lineHeight: 20 },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  heroGreeting: {
+    fontFamily: LuminaFontFamily.dmSansRegular,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.80)',
+    marginBottom: 2,
+  },
+  heroName: {
+    fontFamily: LuminaFontFamily.nunitoBold,
+    fontSize: 28,
+    color: '#FFFFFF',
+    letterSpacing: -0.4,
+  },
+  bellBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.20)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#F04438',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#F05A2A',
+  },
+  bellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontFamily: LuminaFontFamily.dmSansSemiBold,
+  },
+
+  // Avatar strip (family switcher)
+  avatarStrip: {
+    gap: 16,
+    paddingBottom: 4,
+  },
+  avatarItem: {
+    alignItems: 'center',
+    gap: 5,
+    position: 'relative',
+  },
+  avatarCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontFamily: LuminaFontFamily.nunitoBold,
+    fontSize: 18,
+  },
+  avatarLabel: {
+    fontFamily: LuminaFontFamily.dmSansRegular,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.90)',
+    maxWidth: 52,
+    textAlign: 'center',
+  },
+  avatarActiveDot: {
+    position: 'absolute',
+    bottom: 20,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#F05A2A',
+  },
+
+  // Floating stat row
+  statRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: -28,
+    marginHorizontal: LuminaSpacing.xl,
+    marginBottom: 20,
+  },
+
+  // Tabs
+  tabWrap: {
+    paddingHorizontal: LuminaSpacing.xl,
+    marginBottom: 20,
+  },
+  tabTrack: {
+    flexDirection: 'row',
+    borderRadius: LuminaRadius.lg,
+    padding: 4,
+    gap: 4,
+    overflow: 'hidden',
+  },
+  tabBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: LuminaRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  tabBtnActive: {
+    borderRadius: LuminaRadius.md,
+  },
+
+  quickActionsScroll: {
+    gap: 10,
+    paddingRight: LuminaSpacing.xl,
+  },
+
+  tabLabel: {
+    fontFamily: LuminaFontFamily.dmSansRegular,
+    fontSize: 13,
+  },
+
+  // Content
+  content: {
+    paddingHorizontal: LuminaSpacing.xl,
+  },
 });

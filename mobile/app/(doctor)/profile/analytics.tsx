@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 
 import { getDoctorAnalytics } from '@/api/doctor';
-import { LoadingState } from '@/components/lumina/ErrorState';
+import { LoadingSkeleton } from '@/components/lumina/ErrorState';
 import { MetricCard } from '@/components/lumina/MetricCard';
 import { LuminaCard } from '@/components/lumina/LuminaCard';
 import { ScreenHeader } from '@/components/lumina/ScreenHeader';
@@ -11,10 +11,10 @@ import { LuminaSpacing, LuminaTypography } from '@/theme/lumina';
 import { useLuminaTheme } from '@/theme/useLuminaTheme';
 
 export default function DoctorAnalyticsScreen() {
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'doctor' });
   const { data, isLoading } = useQuery({ queryKey: ['doctor-analytics', 30], queryFn: () => getDoctorAnalytics(30) });
 
-  if (isLoading) return <><ScreenHeader title="Performance" /><LoadingState /></>;
+  if (isLoading) return <><ScreenHeader title="Performance" /><LoadingSkeleton count={3} /></>;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

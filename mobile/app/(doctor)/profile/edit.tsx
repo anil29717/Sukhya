@@ -9,7 +9,7 @@ import { UserResponse, normalizeUser } from '@/api/types';
 import { setAuth } from '@/store/authSlice';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
-import { LoadingState } from '@/components/lumina/ErrorState';
+import { LoadingSkeleton } from '@/components/lumina/ErrorState';
 import { LuminaButton, LuminaInput } from '@/components/lumina/LuminaButton';
 import { LuminaCard } from '@/components/lumina/LuminaCard';
 import { ScreenHeader } from '@/components/lumina/ScreenHeader';
@@ -20,7 +20,7 @@ export default function EditDoctorProfileScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const queryClient = useQueryClient();
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'doctor' });
   const { user, token } = useSelector((s: RootState) => s.auth);
 
   const { data: doctor, isLoading } = useQuery({ queryKey: ['doctor-me'], queryFn: getMyDoctorProfile });
@@ -65,7 +65,7 @@ export default function EditDoctorProfileScreen() {
     },
   });
 
-  if (isLoading) return <><ScreenHeader title="Edit Profile" /><LoadingState /></>;
+  if (isLoading) return <><ScreenHeader title="Edit Profile" /><LoadingSkeleton count={3} /></>;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

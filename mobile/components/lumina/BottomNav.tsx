@@ -1,28 +1,13 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, withSpring, useSharedValue } from 'react-native-reanimated';
-import { useEffect } from 'react';
-
-import { useLuminaTheme } from '@/theme/useLuminaTheme';
-import { LuminaMotion, LuminaRadius, LuminaShadow, LuminaSpacing } from '@/theme/lumina';
-import { triggerHaptic } from '@/utils/haptics';
+import { GlassTabBar } from '@/components/lumina/GlassTabBar';
 
 export type TabKey = 'home' | 'doctors' | 'records' | 'timeline' | 'profile';
 
-type TabItem = {
-  key: TabKey;
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconActive: keyof typeof Ionicons.glyphMap;
-};
-
-const TABS: TabItem[] = [
-  { key: 'home', label: 'Home', icon: 'home-outline', iconActive: 'home' },
-  { key: 'doctors', label: 'Doctors', icon: 'medical-outline', iconActive: 'medical' },
-  { key: 'records', label: 'Records', icon: 'folder-outline', iconActive: 'folder' },
-  { key: 'timeline', label: 'Timeline', icon: 'time-outline', iconActive: 'time' },
-  { key: 'profile', label: 'Profile', icon: 'person-outline', iconActive: 'person' },
+const TABS = [
+  { key: 'home' as TabKey, label: 'Home', icon: 'home-outline' as const, iconActive: 'home' as const },
+  { key: 'doctors' as TabKey, label: 'Doctors', icon: 'medical-outline' as const, iconActive: 'medical' as const },
+  { key: 'records' as TabKey, label: 'Records', icon: 'folder-outline' as const, iconActive: 'folder' as const },
+  { key: 'timeline' as TabKey, label: 'Timeline', icon: 'time-outline' as const, iconActive: 'time' as const },
+  { key: 'profile' as TabKey, label: 'Profile', icon: 'person-outline' as const, iconActive: 'person' as const },
 ];
 
 type BottomNavProps = {
@@ -30,72 +15,13 @@ type BottomNavProps = {
   onTabPress: (tab: TabKey) => void;
 };
 
-function TabButton({ tab, isActive, onPress }: { tab: TabItem; isActive: boolean; onPress: () => void }) {
-  const { colors } = useLuminaTheme();
-  const scale = useSharedValue(1);
-
-  useEffect(() => {
-    scale.value = withSpring(isActive ? 1.08 : 1, LuminaMotion.springSnappy);
-  }, [isActive, scale]);
-
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-
-  return (
-    <Pressable
-      style={styles.tab}
-      onPress={() => {
-        triggerHaptic('light');
-        onPress();
-      }}
-      accessibilityRole="tab"
-      accessibilityState={{ selected: isActive }}
-    >
-      <Animated.View style={animStyle}>
-        {isActive ? (
-          <View style={[styles.activeIconWrap, { backgroundColor: colors.primary }]}>
-            <Ionicons name={tab.iconActive} size={20} color={colors.onPrimary} />
-          </View>
-        ) : (
-          <Ionicons name={tab.icon} size={24} color={colors.textMuted} />
-        )}
-      </Animated.View>
-      <Text style={[styles.label, { color: isActive ? colors.primary : colors.textMuted }, isActive && styles.labelActive]}>
-        {tab.label}
-      </Text>
-    </Pressable>
-  );
-}
-
 export function BottomNav({ active, onTabPress }: BottomNavProps) {
-  const insets = useSafeAreaInsets();
-  const { colors } = useLuminaTheme();
-
   return (
-    <View
-      style={[
-        styles.wrapper,
-        LuminaShadow.nav,
-        {
-          paddingBottom: Math.max(insets.bottom, 10),
-          backgroundColor: colors.surfaceElevated,
-          borderTopColor: colors.borderSubtle,
-        },
-      ]}
-    >
-      <View style={styles.bar}>
-        {TABS.map((tab) => (
-          <TabButton key={tab.key} tab={tab} isActive={tab.key === active} onPress={() => onTabPress(tab.key)} />
-        ))}
-      </View>
-    </View>
+    <GlassTabBar
+      tabs={TABS}
+      active={active}
+      onTabPress={onTabPress}
+      role="patient"
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { borderTopWidth: StyleSheet.hairlineWidth },
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingTop: LuminaSpacing.sm, paddingHorizontal: LuminaSpacing.xs },
-  tab: { flex: 1, alignItems: 'center', gap: 4, minHeight: 52, justifyContent: 'center' },
-  activeIconWrap: { width: 40, height: 40, borderRadius: LuminaRadius.full, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 10, fontWeight: '500' },
-  labelActive: { fontWeight: '700' },
-});

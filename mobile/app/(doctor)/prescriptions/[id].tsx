@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getPrescription, sharePrescription } from '@/api/prescriptions';
-import { LoadingState, ErrorState } from '@/components/lumina/ErrorState';
+import { LoadingSkeleton, ErrorState } from '@/components/lumina/ErrorState';
 import { LuminaButton, StatusBadge } from '@/components/lumina/LuminaButton';
 import { LuminaCard } from '@/components/lumina/LuminaCard';
 import { ScreenHeader } from '@/components/lumina/ScreenHeader';
@@ -15,7 +15,7 @@ export default function PrescriptionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'doctor' });
 
   const { data: rx, isLoading, error, refetch } = useQuery({
     queryKey: ['prescription', id],
@@ -31,7 +31,7 @@ export default function PrescriptionDetailScreen() {
     },
   });
 
-  if (isLoading) return <><ScreenHeader title="Prescription" /><LoadingState /></>;
+  if (isLoading) return <><ScreenHeader title="Prescription" /><LoadingSkeleton count={3} /></>;
   if (error || !rx) return <><ScreenHeader title="Prescription" /><ErrorState onRetry={refetch} /></>;
 
   return (

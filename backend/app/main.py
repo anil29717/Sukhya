@@ -8,7 +8,7 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.core.startup import backfill_emergency_profiles, backfill_role_profiles, seed_default_admin, seed_roles
-from app.core.seed_demo import seed_demo_data
+from app.core.seed_demo import repair_missing_demo_record_files, seed_demo_data
 
 settings = get_settings()
 
@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
         backfill_role_profiles(db)
         backfill_emergency_profiles(db)
         seed_demo_data(db)
+        repair_missing_demo_record_files(db)
     finally:
         db.close()
     yield

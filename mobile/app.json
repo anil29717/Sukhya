@@ -40,6 +40,7 @@
       "typedRoutes": true
     },
     "extra": {
+      "apiUrl": "https://healthcare-api-jh30.onrender.com/api/v1",
       "router": {},
       "eas": {
         "projectId": "f61bb402-6c87-41db-9725-df89a930349a"

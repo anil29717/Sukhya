@@ -8,6 +8,7 @@ records, prescriptions, medications, vitals, family, notifications, and timeline
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy.orm import Session, joinedload
@@ -47,6 +48,7 @@ from app.schemas.auth import UserRegisterRequest
 from app.services import auth_service, patient_service, timeline_service
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 DEMO_PATIENT_EMAIL = "patient@example.com"
 DEMO_PATIENT_PASSWORD = "Password123"
@@ -541,6 +543,57 @@ def _seed_notifications(db: Session, user: User) -> None:
             )
         )
     db.commit()
+
+
+def repair_missing_demo_record_files(db: Session) -> int:
+    """Re-upload demo PDFs when blob storage is missing (e.g. after Render redeploy)."""
+    patient = (
+        db.query(Patient)
+        .join(User)
+        .filter(User.phone == DEMO_MARKER_PHONE)
+        .first()
+    )
+    if not patient:
+        return 0
+
+    repaired = 0
+    records = db.query(MedicalRecord).filter(MedicalRecord.patient_id == patient.id).all()
+    for record in records:
+        if repair_demo_record_file(db, record):
+            repaired += 1
+
+    if repaired:
+        db.commit()
+        logger.info("Repaired %d demo medical record file(s) in storage", repaired)
+    return repaired
+
+
+def repair_demo_record_file(db: Session, record: MedicalRecord) -> bool:
+    """Re-upload a single demo record PDF if its blob is missing. Returns True if repaired."""
+    patient = (
+        db.query(Patient)
+        .join(User)
+        .filter(Patient.id == record.patient_id, User.phone == DEMO_MARKER_PHONE)
+        .first()
+    )
+    if not patient:
+        return False
+
+    try:
+        storage_service.read_file(record.storage_key)
+        return False
+    except FileNotFoundError:
+        pass
+    except (OSError, RuntimeError) as exc:
+        logger.warning("Storage read failed for record %s: %s", record.id, exc)
+
+    folder = RECORD_TYPE_FOLDERS.get(record.record_type, "documents")
+    new_key = storage_service.build_storage_key(folder, record.patient_id, record.file_name)
+    mime = record.mime_type or "application/pdf"
+    storage_service.save_file(new_key, MINIMAL_PDF, mime)
+    record.storage_key = new_key
+    record.file_size = len(MINIMAL_PDF)
+    return True
 
 
 def seed_demo_data(db: Session, *, force: bool = False) -> None:

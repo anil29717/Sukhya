@@ -21,5 +21,5 @@ export async function performLogout(): Promise<void> {
   await tokenStorage.removeItem(ACTIVE_PATIENT_KEY);
   delete client.defaults.headers.common.Authorization;
   store.dispatch(clearAuth());
-  router.replace('/(auth)/login');
+  router.replace('/(auth)/welcome');
 }

@@ -5,11 +5,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { listFollowUps, updateFollowUp } from '@/api/followUps';
 import { EmptyState } from '@/components/lumina/EmptyState';
-import { LoadingState } from '@/components/lumina/ErrorState';
+import { LoadingSkeleton } from '@/components/lumina/ErrorState';
 import { LuminaButton, StatusBadge } from '@/components/lumina/LuminaButton';
 import { LuminaCard } from '@/components/lumina/LuminaCard';
 import { ScreenHeader } from '@/components/lumina/ScreenHeader';
-import { TabBar } from '@/components/lumina/MetricCard';
+import { SegmentedControl } from '@/components/lumina/SegmentedControl';
 import { LuminaSpacing } from '@/theme/lumina';
 import { useLuminaTheme } from '@/theme/useLuminaTheme';
 
@@ -18,7 +18,7 @@ type Tab = 'upcoming' | 'missed';
 export default function FollowUpsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'doctor' });
   const [tab, setTab] = useState<Tab>('upcoming');
 
   const { data, isLoading } = useQuery({ queryKey: ['follow-ups'], queryFn: () => listFollowUps() });
@@ -35,13 +35,13 @@ export default function FollowUpsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScreenHeader title="Follow-Ups" />
-      <TabBar tabs={[{ key: 'upcoming', label: 'Upcoming' }, { key: 'missed', label: 'Missed' }]} active={tab} onChange={setTab} />
+      <SegmentedControl role="doctor" segments={[{ key: 'upcoming', label: 'Upcoming' }, { key: 'missed', label: 'Missed' }]} active={tab} onChange={setTab} />
       <View style={{ paddingHorizontal: LuminaSpacing.lg, paddingTop: LuminaSpacing.sm }}>
         <LuminaButton label="Schedule Follow-Up" variant="secondary" icon="add-outline" onPress={() => router.push('/(doctor)/follow-ups/schedule')} />
       </View>
 
       {isLoading ? (
-        <LoadingState />
+        <LoadingSkeleton count={3} />
       ) : items.length === 0 ? (
         <EmptyState icon="arrow-redo-outline" title={`No ${tab} follow-ups`} actionLabel="Schedule" onAction={() => router.push('/(doctor)/follow-ups/schedule')} />
       ) : (

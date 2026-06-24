@@ -14,7 +14,7 @@ import { useLuminaTheme } from '@/theme/useLuminaTheme';
 
 export default function ScheduleFollowUpScreen() {
   const router = useRouter();
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'doctor' });
   const [patientSearch, setPatientSearch] = useState('');
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [scheduledDate, setScheduledDate] = useState('');

@@ -23,7 +23,7 @@ function tabFromSegment(segment: string): DoctorTabKey {
 export default function DoctorTabLayout() {
   const router = useRouter();
   const segments = useSegments();
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'doctor' });
   const last = segments[segments.length - 1] as string;
   const active = tabFromSegment(last === '(tabs)' || last === 'index' ? 'index' : last);
 

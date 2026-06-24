@@ -5,11 +5,12 @@ import { useRouter } from 'expo-router';
 
 import { getUpcomingAppointments, getCompletedAppointments, getCancelledAppointments, getWaitlist } from '@/api/appointments';
 import { EmptyState } from '@/components/lumina/EmptyState';
-import { LoadingState } from '@/components/lumina/ErrorState';
+import { LoadingSkeleton } from '@/components/lumina/ErrorState';
 import { StatusBadge } from '@/components/lumina/LuminaButton';
 import { ScreenHeader } from '@/components/lumina/ScreenHeader';
-import { TabBar } from '@/components/lumina/MetricCard';
-import { LuminaRadius, LuminaSpacing, LuminaTypography } from '@/theme/lumina';
+import { SegmentedControl } from '@/components/lumina/SegmentedControl';
+import { AppointmentCard } from '@/components/lumina/AppointmentCard';
+import { LuminaFontFamily, LuminaRadius, LuminaShadow, LuminaSpacing, LuminaTypography } from '@/theme/lumina';
 import { useLuminaTheme } from '@/theme/useLuminaTheme';
 import { formatDoctorName } from '@/api/types';
 
@@ -17,7 +18,7 @@ type Tab = 'upcoming' | 'completed' | 'cancelled' | 'waitlist';
 
 export default function AppointmentsScreen() {
   const router = useRouter();
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'patient' });
   const [tab, setTab] = useState<Tab>('upcoming');
 
   const upcoming = useQuery({ queryKey: ['appointments', 'upcoming'], queryFn: () => getUpcomingAppointments(), enabled: tab === 'upcoming' });
@@ -34,19 +35,20 @@ export default function AppointmentsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScreenHeader title="Appointments" />
-      <TabBar
-        tabs={[
-          { key: 'upcoming', label: 'Upcoming' },
-          { key: 'completed', label: 'Done' },
-          { key: 'cancelled', label: 'Cancelled' },
-          { key: 'waitlist', label: 'Waitlist' },
+      <SegmentedControl
+        segments={[
+          { key: 'upcoming' as Tab, label: 'Upcoming' },
+          { key: 'completed' as Tab, label: 'Done' },
+          { key: 'cancelled' as Tab, label: 'Cancelled' },
+          { key: 'waitlist' as Tab, label: 'Waitlist' },
         ]}
         active={tab}
         onChange={setTab}
+        role="patient"
       />
 
       {isLoading ? (
-        <LoadingState />
+        <LoadingSkeleton count={3} />
       ) : tab === 'waitlist' ? (
         (waitlist.data?.length ?? 0) === 0 ? (
           <EmptyState icon="time-outline" title="No waitlist entries" actionLabel="Find a Doctor" onAction={() => router.push('/(patient)/(tabs)/doctors')} />
@@ -56,10 +58,10 @@ export default function AppointmentsScreen() {
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={styles.list}
             renderItem={({ item }) => (
-              <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={[styles.waitlistCard, LuminaShadow.sm, { backgroundColor: colors.surface }]}>
                 <Text style={[styles.doctor, { color: colors.text }]}>{item.doctor_name ?? 'Doctor'}</Text>
                 <StatusBadge status={item.status} />
-                <Text style={{ color: colors.textMuted, marginTop: 4 }}>{item.desired_date ?? item.preferred_date ?? 'Any date'}</Text>
+                <Text style={[styles.meta, { color: colors.textMuted }]}>{item.desired_date ?? item.preferred_date ?? 'Any date'}</Text>
               </View>
             )}
           />
@@ -72,15 +74,18 @@ export default function AppointmentsScreen() {
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.push(`/(patient)/appointments/${item.id}`)}>
-              <View style={styles.cardRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.doctor, { color: colors.text }]}>{formatDoctorName(item.doctor?.full_name)}</Text>
-                  <Text style={{ color: colors.textSecondary }}>{item.appointment_date} · {item.start_time?.slice(0, 5)}</Text>
-                </View>
-                <StatusBadge status={item.status} />
-              </View>
-            </Pressable>
+            <AppointmentCard
+              appointment={{
+                id: item.id,
+                doctorName: formatDoctorName(item.doctor?.full_name),
+                time: item.start_time?.slice(0, 5),
+                date: item.appointment_date,
+                status: item.status,
+                reason: item.reason,
+              }}
+              onPress={() => router.push(`/(patient)/appointments/${item.id}`)}
+              role="patient"
+            />
           )}
         />
       )}
@@ -90,8 +95,9 @@ export default function AppointmentsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  list: { padding: LuminaSpacing.lg, paddingBottom: 40, gap: LuminaSpacing.sm },
-  card: { padding: LuminaSpacing.lg, borderRadius: LuminaRadius.lg, borderWidth: 1 },
+  list: { paddingHorizontal: LuminaSpacing.xl, paddingTop: LuminaSpacing.md, paddingBottom: 40 },
+  waitlistCard: { padding: LuminaSpacing.lg, borderRadius: LuminaRadius.lg, marginBottom: LuminaSpacing.md, gap: LuminaSpacing.sm },
   cardRow: { flexDirection: 'row', alignItems: 'center' },
   doctor: { ...LuminaTypography.h3 },
+  meta: { fontSize: 12, fontFamily: LuminaFontFamily.dmSansRegular },
 });

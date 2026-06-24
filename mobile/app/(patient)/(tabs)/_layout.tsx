@@ -23,7 +23,7 @@ function tabFromSegment(segment: string): TabKey {
 export default function PatientTabLayout() {
   const router = useRouter();
   const segments = useSegments();
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'patient' });
   const last = segments[segments.length - 1] as string;
   const active = tabFromSegment(last === '(tabs)' || last === 'index' ? 'index' : last);
 

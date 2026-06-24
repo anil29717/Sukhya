@@ -17,7 +17,7 @@ const MESSAGES: Record<string, { title: string; message: string; icon: 'checkmar
 export default function DoctorSuccessScreen() {
   const { type } = useLocalSearchParams<{ type: string }>();
   const router = useRouter();
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'doctor' });
   const config = MESSAGES[type ?? ''] ?? { title: 'Success', message: 'Action completed.', icon: 'checkmark-circle' as const };
 
   useEffect(() => {
@@ -27,8 +27,8 @@ export default function DoctorSuccessScreen() {
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.background }]}>
-      <SuccessScreen title={config.title} message={config.message} icon={config.icon} />
-      <LuminaButton label="Back to Dashboard" onPress={() => router.replace('/(doctor)/(tabs)')} />
+      <SuccessScreen title={config.title} message={config.message} icon={config.icon} role="doctor" />
+      <LuminaButton label="Back to Dashboard" role="doctor" onPress={() => router.replace('/(doctor)/(tabs)')} />
     </View>
   );
 }

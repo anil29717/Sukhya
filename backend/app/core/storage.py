@@ -143,7 +143,26 @@ class StorageService:
         if provider == "s3":
             return self._read_s3(logical_key)
 
-        return self._read_local(logical_key), None
+        # Local key — try disk first, then optional cloud/S3 fallbacks for migrated deploys
+        try:
+            return self._read_local(logical_key), None
+        except FileNotFoundError:
+            pass
+
+        if self._cloudinary_ready:
+            for candidate in self._cloudinary_key_candidates(logical_key):
+                try:
+                    return self._read_cloudinary(candidate)
+                except FileNotFoundError:
+                    continue
+
+        if settings.s3_configured:
+            try:
+                return self._read_s3(logical_key)
+            except FileNotFoundError:
+                pass
+
+        raise FileNotFoundError(storage_key)
 
     # ── Local ──────────────────────────────────────────────────────────────
 
@@ -159,7 +178,19 @@ class StorageService:
 
     def _read_local(self, storage_key: str) -> bytes:
         path = self.local_root / storage_key
+        if not path.exists():
+            raise FileNotFoundError(storage_key)
         return path.read_bytes()
+
+    def _cloudinary_key_candidates(self, logical_key: str) -> list[str]:
+        candidates = [logical_key]
+        folder = settings.CLOUDINARY_FOLDER.strip("/") if settings.CLOUDINARY_FOLDER else ""
+        if folder:
+            prefixed = f"{folder}/{logical_key}"
+            candidates.insert(0, prefixed)
+            if logical_key.startswith(f"{folder}/"):
+                candidates.append(logical_key[len(folder) + 1 :])
+        return list(dict.fromkeys(candidates))
 
     # ── S3 ─────────────────────────────────────────────────────────────────
 

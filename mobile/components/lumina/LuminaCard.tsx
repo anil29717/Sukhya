@@ -1,7 +1,7 @@
 import { StyleSheet, View, ViewProps } from 'react-native';
 
 import { useLuminaTheme } from '@/theme/useLuminaTheme';
-import { LuminaRadius, LuminaShadow, LuminaSpacing } from '@/theme/lumina';
+import { LuminaRadius, LuminaShadow, LuminaSpacing, LuminaLayout } from '@/theme/lumina';
 
 type LuminaCardProps = ViewProps & {
   children: React.ReactNode;
@@ -36,6 +36,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: LuminaRadius.lg,
     borderWidth: StyleSheet.hairlineWidth,
+    ...LuminaLayout.stretch,
   },
   flat: { borderWidth: 0 },
 });

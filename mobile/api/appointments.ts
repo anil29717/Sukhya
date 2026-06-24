@@ -60,8 +60,17 @@ export async function rescheduleAppointment(
   return data;
 }
 
-export async function quickRebook(id: number): Promise<Appointment> {
-  const { data } = await client.post<Appointment>(`/appointments/${id}/quick-rebook`);
+export interface QuickRebookResponse {
+  original_appointment_id: number;
+  new_appointment_id: number;
+  appointment_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+}
+
+export async function quickRebook(id: number): Promise<QuickRebookResponse> {
+  const { data } = await client.post<QuickRebookResponse>(`/appointments/${id}/quick-rebook`);
   return data;
 }
 

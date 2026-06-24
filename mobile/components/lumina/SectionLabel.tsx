@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useLuminaTheme } from '@/theme/useLuminaTheme';
-import { LuminaSpacing, LuminaTypography } from '@/theme/lumina';
+import { LuminaFontFamily, LuminaSpacing } from '@/theme/lumina';
 
 type SectionLabelProps = {
   title: string;
@@ -9,14 +9,15 @@ type SectionLabelProps = {
   onAction?: () => void;
 };
 
-export function SectionLabel({ title, actionLabel, onAction }: SectionLabelProps) {
-  const { colors } = useLuminaTheme();
+export function SectionLabel({ title, actionLabel, onAction, role }: SectionLabelProps & { role?: 'patient' | 'doctor' }) {
+  const { colors } = useLuminaTheme({ role });
+  const labelColor = role === 'patient' ? colors.coral : colors.teal;
   return (
     <View style={styles.row}>
-      <Text style={[styles.title, { color: colors.textMuted }]}>{title}</Text>
+      <Text style={[styles.title, { color: labelColor }]}>{title}</Text>
       {actionLabel && onAction ? (
         <Pressable onPress={onAction} hitSlop={8}>
-          <Text style={[styles.action, { color: colors.primary }]}>{actionLabel}</Text>
+          <Text style={[styles.action, { color: colors.teal }]}>{actionLabel}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -31,6 +32,14 @@ const styles = StyleSheet.create({
     marginBottom: LuminaSpacing.md,
     marginTop: LuminaSpacing.sm,
   },
-  title: { ...LuminaTypography.overline, fontSize: 11 },
-  action: { ...LuminaTypography.label, fontWeight: '600' },
+  title: {
+    fontSize: 11,
+    fontFamily: LuminaFontFamily.dmSansMedium,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  action: {
+    fontSize: 13,
+    fontFamily: LuminaFontFamily.dmSansMedium,
+  },
 });
