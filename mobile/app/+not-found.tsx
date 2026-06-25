@@ -1,17 +1,20 @@
 import { Link, Stack } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { Text, View } from '@/components/Themed';
+import { useLuminaTheme } from '@/theme/useLuminaTheme';
+import { LuminaTypography } from '@/theme/lumina';
 
 export default function NotFoundScreen() {
+  const { colors } = useLuminaTheme();
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />
-      <View style={styles.container}>
-        <Text style={styles.title}>This screen doesn't exist.</Text>
-
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.title, { color: colors.text, ...LuminaTypography.h2 }]}>
+          This screen doesn't exist.
+        </Text>
         <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Go to home screen!</Text>
+          <Text style={[styles.linkText, { color: colors.teal }]}>Go to home screen</Text>
         </Link>
       </View>
     </>
@@ -26,15 +29,13 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    textAlign: 'center',
   },
   link: {
-    marginTop: 15,
-    paddingVertical: 15,
+    marginTop: 16,
+    paddingVertical: 12,
   },
   linkText: {
-    fontSize: 14,
-    color: '#2e78b7',
+    fontSize: 15,
   },
 });

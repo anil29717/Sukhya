@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { getMedicalRecord } from '@/api/records';
-import { LoadingState, ErrorState } from '@/components/lumina/ErrorState';
+import { LoadingSkeleton, ErrorState } from '@/components/lumina/ErrorState';
 import { LuminaButton } from '@/components/lumina/LuminaButton';
 import { LuminaCard } from '@/components/lumina/LuminaCard';
 import { ScreenHeader } from '@/components/lumina/ScreenHeader';
@@ -14,7 +14,7 @@ import { useLuminaTheme } from '@/theme/useLuminaTheme';
 export default function DoctorRecordDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'doctor' });
 
   const { data: record, isLoading, error, refetch } = useQuery({
     queryKey: ['record', id],
@@ -22,7 +22,7 @@ export default function DoctorRecordDetailScreen() {
     enabled: !!id,
   });
 
-  if (isLoading) return <><ScreenHeader title="Record" /><LoadingState /></>;
+  if (isLoading) return <><ScreenHeader title="Record" /><LoadingSkeleton count={3} /></>;
   if (error || !record) return <><ScreenHeader title="Record" /><ErrorState onRetry={refetch} /></>;
 
   return (

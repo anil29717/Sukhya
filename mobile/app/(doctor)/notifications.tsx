@@ -11,7 +11,7 @@ import { LuminaSpacing, LuminaTypography } from '@/theme/lumina';
 import { useLuminaTheme } from '@/theme/useLuminaTheme';
 
 export default function DoctorNotificationsScreen() {
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'doctor' });
   const [refreshing, setRefreshing] = useState(false);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({

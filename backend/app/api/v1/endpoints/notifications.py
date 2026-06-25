@@ -1,4 +1,8 @@
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, Query, Security
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -8,6 +12,35 @@ from app.schemas.medical import NotificationListResponse, NotificationResponse
 from app.models import Notification
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
+
+
+@router.get(
+    "/stream",
+    summary="Real-time notification stream (SSE)",
+    description=(
+        "Server-sent events stream for live notifications. "
+        "Sends heartbeat events until push delivery is implemented."
+    ),
+)
+async def notification_stream(
+    current_user: User = Depends(require_roles(RoleName.PATIENT, RoleName.DOCTOR, RoleName.ADMIN)),
+    _: str = Security(security_scheme),
+) -> StreamingResponse:
+    async def event_generator():
+        yield f"data: {json.dumps({'type': 'connected', 'user_id': current_user.id})}\n\n"
+        while True:
+            await asyncio.sleep(30)
+            yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get(

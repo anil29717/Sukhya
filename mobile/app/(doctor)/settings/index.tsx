@@ -9,7 +9,7 @@ import { LuminaSpacing } from '@/theme/lumina';
 import { useLuminaTheme } from '@/theme/useLuminaTheme';
 
 export default function DoctorSettingsScreen() {
-  const { colors } = useLuminaTheme();
+  const { colors } = useLuminaTheme({ role: 'doctor' });
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

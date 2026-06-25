@@ -7,16 +7,16 @@ import { setAuth, clearAuth } from '@/store/authSlice';
 import { normalizeUser, UserResponse } from './types';
 import { tokenStorage, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from './storage';
 
+/** Hosted backend (Render). Used when EXPO_PUBLIC_API_URL is not set. */
+export const PRODUCTION_API_URL = 'https://healthcare-api-jh30.onrender.com/api/v1';
+
 function resolveApiUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL ?? Constants.expoConfig?.extra?.apiUrl;
   if (envUrl) return envUrl.replace(/\/$/, '');
 
-  if (Platform.OS === 'web') return 'http://localhost:8000/api/v1';
+  if (Platform.OS === 'web' && __DEV__) return 'http://localhost:8000/api/v1';
 
-  const host =
-    Constants.expoConfig?.hostUri?.split(':')[0] ??
-    (Platform.OS === 'android' ? '10.0.2.2' : 'localhost');
-  return `http://${host}:8000/api/v1`;
+  return PRODUCTION_API_URL;
 }
 
 export const API_URL = resolveApiUrl();

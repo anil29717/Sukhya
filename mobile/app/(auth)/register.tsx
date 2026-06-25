@@ -1,16 +1,35 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, View, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { client } from '@/api/client';
-import { LuminaColors, LuminaRadius, LuminaSpacing, LuminaTypography } from '@/theme/lumina';
+import { LuminaFontFamily, LuminaRadius, LuminaSpacing, LuminaTypography, LuminaLayout } from '@/theme/lumina';
+import { useLuminaTheme } from '@/theme/useLuminaTheme';
+import { LuminaButton, LuminaInput } from '@/components/lumina/LuminaButton';
+import { PasswordStrengthBar } from '@/components/lumina/PasswordStrengthBar';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useLuminaTheme({ role: 'patient' });
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -19,6 +38,20 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [success, setSuccess] = useState(false);
+
+  const headerOpacity = useSharedValue(0);
+  const headerY = useSharedValue(10);
+  const formOpacity = useSharedValue(0);
+  const formY = useSharedValue(10);
+
+  const ease = Easing.out(Easing.cubic);
+
+  useEffect(() => {
+    headerOpacity.value = withDelay(60, withTiming(1, { duration: 420, easing: ease }));
+    headerY.value = withDelay(60, withTiming(0, { duration: 420, easing: ease }));
+    formOpacity.value = withDelay(180, withTiming(1, { duration: 400, easing: ease }));
+    formY.value = withDelay(180, withTiming(0, { duration: 400, easing: ease }));
+  }, [headerOpacity, headerY, formOpacity, formY, ease]);
 
   const registerMutation = useMutation({
     mutationFn: async () => {
@@ -48,7 +81,7 @@ export default function RegisterScreen() {
         setTimeout(() => router.replace('/(auth)/login'), 2000);
       }
     },
-    onError: (err: any) => {
+    onError: (err: { response?: { data?: { detail?: string } } }) => {
       const detail = err.response?.data?.detail;
       setErrorMsg(typeof detail === 'string' ? detail : 'Registration failed. Check your inputs.');
     },
@@ -66,128 +99,126 @@ export default function RegisterScreen() {
     registerMutation.mutate();
   };
 
+  const headerStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerY.value }],
+  }));
+
+  const formStyle = useAnimatedStyle(() => ({
+    opacity: formOpacity.value,
+    transform: [{ translateY: formY.value }],
+  }));
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text style={styles.logo}>Lumina Health</Text>
-          <Text style={styles.subtitle}>Create a patient account</Text>
-        </View>
+        {/* Header */}
+        <Animated.View style={[styles.header, headerStyle]}>
+          <View style={[styles.logoMark, { backgroundColor: colors.coralSoft }]}>
+            <Text style={[styles.logoLetter, { color: colors.coral }]}>L</Text>
+          </View>
+          <Text style={[styles.wordmark, { color: colors.text }]}>Lumina Health</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Create a patient account</Text>
+        </Animated.View>
 
-        <View style={styles.form}>
+        {/* Form card */}
+        <Animated.View
+          style={[styles.form, LuminaLayout.fullWidth, formStyle, { backgroundColor: colors.surface }]}
+        >
           {success ? (
-            <View style={styles.successContainer}>
-              <Ionicons name="checkmark-circle-outline" size={24} color={LuminaColors.accentMintText} />
-              <Text style={styles.successText}>Registration successful! Redirecting to login...</Text>
+            <View style={[styles.successBanner, { backgroundColor: colors.successSoft }]}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              <Text style={[styles.successText, { color: colors.successText }]}>
+                Account created! Signing you in…
+              </Text>
             </View>
           ) : (
             <>
               {errorMsg ? (
-                <View style={styles.errorContainer}>
-                  <Ionicons name="alert-circle-outline" size={18} color={LuminaColors.accentRedText} />
-                  <Text style={styles.errorText}>{errorMsg}</Text>
+                <View style={[styles.errorBanner, { backgroundColor: colors.errorSoft }]}>
+                  <Ionicons name="alert-circle" size={16} color={colors.errorText} />
+                  <Text style={[styles.errorText, { color: colors.errorText }]}>{errorMsg}</Text>
                 </View>
               ) : null}
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Full Name *</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="person-outline" size={20} color={LuminaColors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="John Doe"
-                    placeholderTextColor={LuminaColors.textMuted}
-                    autoCapitalize="words"
-                    value={fullName}
-                    onChangeText={setFullName}
+              <LuminaInput
+                label="Full Name"
+                icon="person-outline"
+                placeholder="Jane Doe"
+                autoCapitalize="words"
+                value={fullName}
+                onChangeText={setFullName}
+              />
+
+              <LuminaInput
+                label="Email Address"
+                icon="mail-outline"
+                placeholder="you@example.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+
+              <LuminaInput
+                label="Phone Number (optional)"
+                icon="call-outline"
+                placeholder="+1 (555) 000-0000"
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={setPhone}
+              />
+
+              <View>
+                <LuminaInput
+                  label="Password"
+                  icon="lock-closed-outline"
+                  placeholder="Min 8 characters"
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <Pressable style={styles.eyeToggle} onPress={() => setShowPassword(!showPassword)}>
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={colors.textSecondary}
                   />
-                </View>
+                </Pressable>
+                {password.length > 0 ? (
+                  <PasswordStrengthBar password={password} />
+                ) : null}
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email Address *</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="mail-outline" size={20} color={LuminaColors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="you@example.com"
-                    placeholderTextColor={LuminaColors.textMuted}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={setEmail}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Phone Number (Optional)</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="call-outline" size={20} color={LuminaColors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="+1 (555) 000-0000"
-                    placeholderTextColor={LuminaColors.textMuted}
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={setPhone}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password *</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="lock-closed-outline" size={20} color={LuminaColors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { paddingRight: 40 }]}
-                    placeholder="Min 8 characters"
-                    placeholderTextColor={LuminaColors.textMuted}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                    value={password}
-                    onChangeText={setPassword}
-                  />
-                  <Pressable
-                    style={styles.eyeIcon}
-                    onPress={() => setShowPassword(!showPassword)}
-                  >
-                    <Ionicons
-                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={20}
-                      color={LuminaColors.textSecondary}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-
-              <Pressable
-                style={[styles.button, registerMutation.isPending && styles.buttonDisabled]}
+              <LuminaButton
+                label="Create Account"
                 onPress={handleRegister}
-                disabled={registerMutation.isPending}
-              >
-                {registerMutation.isPending ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Register</Text>
-                )}
-              </Pressable>
+                loading={registerMutation.isPending}
+                role="patient"
+              />
             </>
           )}
-        </View>
+        </Animated.View>
 
+        {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
+          <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+            Already have an account?{' '}
+          </Text>
           <Link href="/(auth)/login" asChild>
             <Pressable>
-              <Text style={styles.loginLink}>Sign In</Text>
+              <Text style={[styles.loginLink, { color: colors.coral }]}>Sign In</Text>
             </Pressable>
           </Link>
         </View>
@@ -197,122 +228,83 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: LuminaColors.background,
-  },
+  container: { flex: 1 },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: LuminaSpacing.xl,
     justifyContent: 'center',
+    alignItems: 'stretch',
   },
-  header: {
+  header: { alignItems: 'center', marginBottom: 32 },
+  logoMark: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
-    marginBottom: 40,
+    justifyContent: 'center',
+    marginBottom: 16,
   },
-  logo: {
-    ...LuminaTypography.h1,
-    color: LuminaColors.text,
-    marginBottom: LuminaSpacing.xs,
+  logoLetter: { fontSize: 26, fontFamily: LuminaFontFamily.nunitoExtraBold },
+  wordmark: {
+    fontSize: 24,
+    fontFamily: LuminaFontFamily.nunitoExtraBold,
+    letterSpacing: -0.4,
+    marginBottom: 6,
   },
-  subtitle: {
-    ...LuminaTypography.body,
-    color: LuminaColors.textSecondary,
-  },
+  subtitle: { ...LuminaTypography.body },
+
   form: {
-    backgroundColor: LuminaColors.surface,
-    borderRadius: LuminaRadius.lg,
+    borderRadius: LuminaRadius.xl,
     padding: LuminaSpacing.xl,
-    borderWidth: 1,
-    borderColor: LuminaColors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+    width: '100%',
+    alignSelf: 'stretch',
   },
-  errorContainer: {
+
+  errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: LuminaSpacing.xs,
-    backgroundColor: LuminaColors.accentRed,
     padding: LuminaSpacing.md,
     borderRadius: LuminaRadius.md,
     marginBottom: LuminaSpacing.lg,
   },
-  errorText: {
-    ...LuminaTypography.bodySmall,
-    color: LuminaColors.accentRedText,
-    flex: 1,
-  },
-  successContainer: {
-    alignItems: 'center',
-    padding: LuminaSpacing.xl,
-    gap: LuminaSpacing.md,
-  },
-  successText: {
-    ...LuminaTypography.body,
-    color: LuminaColors.accentMintText,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  inputGroup: {
-    marginBottom: LuminaSpacing.lg,
-  },
-  label: {
-    ...LuminaTypography.label,
-    color: LuminaColors.text,
-    marginBottom: LuminaSpacing.xs,
-  },
-  inputWrapper: {
+  errorText: { ...LuminaTypography.bodySmall, flex: 1 },
+
+  successBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: LuminaColors.border,
+    gap: LuminaSpacing.sm,
+    padding: LuminaSpacing.lg,
     borderRadius: LuminaRadius.md,
-    backgroundColor: LuminaColors.background,
-    height: 48,
   },
-  inputIcon: {
-    paddingLeft: LuminaSpacing.md,
-  },
-  input: {
+  successText: {
+    ...LuminaTypography.bodySmall,
+    fontFamily: LuminaFontFamily.dmSansMedium,
     flex: 1,
-    height: '100%',
-    paddingHorizontal: LuminaSpacing.md,
-    color: LuminaColors.text,
-    fontSize: 15,
   },
-  eyeIcon: {
+
+  eyeToggle: {
     position: 'absolute',
-    right: 12,
-    height: '100%',
+    right: 14,
+    bottom: LuminaSpacing.lg + 14,
+    height: 24,
     justifyContent: 'center',
   },
-  button: {
-    backgroundColor: LuminaColors.navy,
-    borderRadius: LuminaRadius.md,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: LuminaSpacing.md,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 32,
+    marginTop: 28,
   },
-  footerText: {
-    ...LuminaTypography.bodySmall,
-    color: LuminaColors.textSecondary,
-  },
+  footerText: { ...LuminaTypography.bodySmall },
   loginLink: {
     ...LuminaTypography.bodySmall,
-    color: LuminaColors.accentTeal,
-    fontWeight: '600',
+    fontFamily: LuminaFontFamily.dmSansSemiBold,
   },
 });

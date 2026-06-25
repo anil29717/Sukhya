@@ -52,9 +52,9 @@ export async function deleteFamilyMember(id: number): Promise<void> {
   await client.delete(`/family/members/${id}`);
 }
 
-export async function getNotifications(page = 1): Promise<PaginatedResponse<Notification>> {
+export async function getNotifications(page = 1, pageSize = 20): Promise<PaginatedResponse<Notification>> {
   const { data } = await client.get<PaginatedResponse<Notification>>('/notifications/me', {
-    params: { page },
+    params: { page, page_size: pageSize },
   });
   return data;
 }
